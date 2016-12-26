@@ -1,4 +1,4 @@
-# Experimental-SOC-Parser
+# SOC-Parser
 Parses the schedule of classes.
 
 # How to use (Mac)
