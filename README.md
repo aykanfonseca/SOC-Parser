@@ -16,3 +16,4 @@ If you already have pip installed, you can proceed to step 3.
 1. Parallelize code via map and grequests.
 2. Eliminate timing code.
 3. Eliminate partitioning code and insert page number directly into the function.
+4. Load data into database for retreival.
