@@ -4,7 +4,7 @@ Parses the schedule of classes.
 # How to use (Mac)
 There are a couple of python modules you must install first to run this program.
 
-If you already have pip installed, you can proceed to step ??.
+If you already have pip installed, you can proceed to step 3.
 
 1. Install homebrew. This is a useful general package manager for macOS.
 
