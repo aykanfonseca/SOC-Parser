@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from time import time
 import requests, itertools, re
+import grequests
 
 # Starts the timer.
 start = time()
