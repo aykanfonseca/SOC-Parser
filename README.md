@@ -1,4 +1,4 @@
-# SOC Parser
+# Multiprocessing SOC Parser
 Parses the schedule of classes.
 
 # How to use (Mac)
@@ -9,11 +9,12 @@ If you already have pip installed, you can proceed to step 3.
 1. Install homebrew. This is a useful general package manager for macOS.
 2. Install python via homebrew. Doing so will get us pip. 
 3. Install lxml via pip
-4. Install requests via pip
+4. Install requests via pip (alternatively, skip to step 5 and proceed)
 5. Install bs4 via pip
+6. Install grequests via pip
 
 # Improvements to do
-1. Parallelize code via map and grequests.
+1. Parallelize code via map and grequests and use correct working version to correct parallel version's incorrect results.
 2. Eliminate timing code.
 3. Eliminate partitioning code and insert page number directly into the function.
 4. Load data into database for retreival.
