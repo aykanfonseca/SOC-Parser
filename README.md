@@ -17,3 +17,7 @@ If you already have pip installed, you can proceed to step 3.
 2. Eliminate timing code.
 3. Eliminate partitioning code and insert page number directly into the function.
 4. Load data into database for retreival.
+5. Account for multiple teachers, sections, emails, and more.
+6. Fine-tune data to create a class object with metrics for a particular class.
+  a. How many discussions are avaiable.
+
