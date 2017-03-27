@@ -1,18 +1,19 @@
 from bs4 import BeautifulSoup
 from datetime import datetime
-import requests, time, itertools, re
+import time
+import requests, itertools, re
 
 # Starts the timer.
 start = time.time()
 
 # Relevant Year Data for current year (cYear) and next year (nYear) but only the last two digits.
-date = datetime.now()
-cY = repr(date.year % 100)
-nY = repr((date.year + 1) % 100)
+year = datetime.now().year
+cY = repr(year % 100)
+nY = repr(year + 1 % 100)
 
 # This is the URL to the entire list of classes.
-URL = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm'
-URL2 = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
+SOC = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
+Subjects = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
 
 # Input data besides classes.
 post_data = {
@@ -29,103 +30,113 @@ def get_quarters(URL, current=None):
     quarters = requests.post(URL)
     qSoup = BeautifulSoup(quarters.content, 'lxml')
 
-    # Current quarter by optional parameter.
-    if current:
-        for option in qSoup.findAll('option'):
-            value = option['value']
-            if value[2:] in (cY, nY):
-                return value
-
     # Gets the rest of the quarters for the year.
-    else:
-        quarters = []
-        for option in qSoup.findAll('option'):
-            # Value will take the form 'FA16' or 'SP15' for example.
-            value = option['value']
-            if value[2:] in (cY, nY):
+    quarters = []
+    for option in qSoup.findAll('option'):
+        # Value will take the form 'FA16' or 'SP15' for example.
+        value = option['value']
+        if value[2:] in (cY, nY):
+            # Current quarter by optional parameter.
+            if current:
+                return value
+            else:
                 quarters.append(value)
 
-        return quarters
+    return quarters
 
 # Gets all the subjects listed in select menu.
 def get_subjects():
     # Makes the post request for the Subject Codes.
-    subjectPost = requests.post(URL2)
+    subjectPost = requests.post(Subjects)
     subjectSoup = BeautifulSoup(subjectPost.content, 'lxml')
 
     # Gets all the subject Codes for post request.
     subjects = {}
     for x in subjectSoup.findAll('td'):
-        if len(x.text) <= 4:
-            subjects.setdefault('selectedSubjects', []).append(str(x.text))
+        if (len(x.text) <= 4):
+            if str(x.text).isupper():
+                subjects.setdefault('selectedSubjects', []).append(str(x.text))
 
     return subjects
 
 # Updates term and post request using the current quarter by calling get_current_quarter.
 def update_term():
-    term = {'selectedTerm': get_quarters(URL, current='yes')}
+    quarter = get_quarters(SOC, current='yes')
+    term = {'selectedTerm': quarter}
     post_data.update(term)
+    return quarter
 
 # Updates the post request and subjects selected by parsing URL2.
 def update_subjects():
-    post_data.update(get_subjects())
-    # post_data.update({'selectedSubjects' : 'CSE'})
+    # postData.update(getSubjects())
+    post_data.update({'selectedSubjects' : 'CSE'})
 
-# Calls update_subjects & update_term to add to post data.
+# Calls updateSubjects & update_term to add to post data.
 def update_post():
-    update_term()
     update_subjects()
+    quarter = update_term()
+    return quarter
 
 # Parses the data of one page.
-def get_data(url):
-    post = s.get(url)
+def get_data(url, page):
+    # Occasionally, the first call will fail.
+    try:
+        post = s.get(url)
+    except:
+        post = s.get(url)
+
     soup = BeautifulSoup(post.content, 'lxml')
     tr_elements = soup.findAll('tr')
     span_elements = soup.findAll('span', {'class': 'centeralign'})
 
     # Gets the list of departments in the current page.
-    departments = [str(x.text.partition("(")[2].partition(" ")[0]) for x in span_elements if ' )' in x.text]
+    departments = (str(x.text.partition("(")[2].partition(" ")[0]) for x in span_elements if ' )' in x.text)
 
-    counter = 0
     SOC = []
+
     # Used to switch departments.
     for item in tr_elements:
-        parsedText = str(' '.join(item.text.split()))
+        parsedText = str(" ".join(item.text.split()))
 
         # Next one if you find selected text b/c new subject is shown.
         if all(x in parsedText for x in ['Course Number', 'ID']):
-            # currentDept = next(departments)
-            currentDept = departments[counter]
-            counter += 1
+            currentDept = next(departments)
 
         # The header of each class: units, department, course number, etc..
         if ('Units' in parsedText):
-            SOC.append(' NXC')
-            SOC.append((currentDept + ' ' + parsedText).partition(' Prereq')[0])
+            add = parsedText.partition(' Prereq')[0]
+            SOC.extend((' NXC', currentDept + ' ' + add))
 
         # Final / Midterm Information, Section information (Discussion and Labs), and Email.
         else:
+            # Assume there isn't an item class.
+            itemClass = ''
+
+            # Check if there is an item  class.
             try:
                 itemClass = str(item['class'][0])
             except KeyError:
-                itemClass = ''
+                pass
 
             if (itemClass == 'nonenrtxt'):
                 if (('FI' or 'MI') in parsedText):
-                    SOC.append(parsedText)
+                    SOC.append((parsedText))
 
             if (itemClass == 'sectxt'):
                 if 'Cancelled' not in parsedText:
-                    SOC.append('....' + parsedText)
+                    # Assume there is no email.
+                    email = 'No Email'
 
+                    # Check if there is an email.
                     try:
                         email = str(item.find('a')['href'])[7:]
                     except TypeError:
-                        email = 'No Email'
+                        pass
 
-                    SOC.append(email)
+                    # SOC.append(email)
+                    SOC.extend(('....' + parsedText, email))
 
-    print ("Completed Page {} of {}").format(url.partition('=')[2].partition(' ')[0], numberPages)
+    print ("Completed Page {} of {}").format(page, numberPages)
     return SOC
 
 # Parses the list elements into their readable values to store.
@@ -158,10 +169,10 @@ def parse_list(ls):
                 Header.append('No Restrictions')
         pass
 
-        # TODO : What happens if there are two emails? Need to modify get_data as well.
+        # TODO : What happens if there are two emails? Need to modify getData as well.
 
         # Find Email Info.
-        if (('No Email' or '.edu') in item) and (item.strip() not in Email):
+        if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in Email):
             if (len(Email) == 0) or ('No Email' not in item):
                 Email.append(item.strip())
         pass
@@ -409,7 +420,7 @@ def parse_list(ls):
 
 # Formats the result list into the one we want
 def format_list(ls):
-    # Flattens list of lists into list.
+    # # Flattens list of lists into list.
     parsedSOC = [item for sublist in ls for item in sublist]
 
     # Spliting a list into lists of lists based on a delimiter word.
@@ -418,38 +429,26 @@ def format_list(ls):
     # Sorts list based on sorting criteria.
     return [x for x in parsedSOC if len(x) > 2 and not 'Cancelled' in x]
 
-# Gets the data for Cape scrape: format like this, 'CSE 100 Alvarado Christine J.'.
-def unique_values(ls):
-    local = [' '.join([item[0][0], item[0][1]+ ":", item[1][10] + ",", item[1][11], item[1][12]]) for item in ls]
-
-    found = set()
-    for item in local:
-        if item not in found:
-            found.add(item)
-
-    return list(found)
-
 # The main function.
 def main():
-    """Main entry point for script."""
-
     global s, numberPages
 
-    # Update post_data and request session for previously parsed classes.
+    # Update postData and request session for previously parsed classes.
     update_post()
 
     s = requests.Session()
-    post = s.post(URL, data=post_data)
+    s.headers['User-Agent'] = 'Mozilla/5.0'
+    post = s.post(SOC, data=post_data)
     soup = BeautifulSoup(post.content, 'lxml')
 
     # The total number of pages to parse and the current page starting at 1.
     numberPages = int(soup.text[re.search(r"Page", soup.text).start()+12:].partition(')')[0])
 
-    # Generates list of urls.
-    urls = [''.join([URL, '?page=', str(i)]) for i in range(1, numberPages + 1)]
+    pages = [x for x in xrange(1, numberPages + 1)]
+    urls = [SOC + str(x) for x in pages]
 
-    # You could then remove some of the stuff in format_list.
-    results = [get_data(i) for i in urls]
+    # Gets the data using urls.
+    results = [get_data(x,y) for (x,y) in itertools.izip(urls, pages)]
 
     # Format list into proper format
     results = format_list(results)
@@ -457,18 +456,26 @@ def main():
     # Parses items in list into usable portions.
     final = [parse_list(item) for item in results]
 
-    for item in final:
-        print item
-        print '\n'
+    # for item in final:
+    #     print item
+    #     print '\n'
 
     return final
 
 # The main algorithm that employes functions to get the data.
 if __name__ == '__main__':
-    main()
+    Final = main()
+
+    with open("dataset.txt", "w") as file:
+        for item in Final:
+            for i in item:
+                file.write(str(i))
+
+            file.write("\n")
+            file.write("\n")
 
     # Ends the timer.
     end = time.time()
 
     # Prints how long it took for program to run.
-    print('\n' + str(end - start))
+    print('\n' + str(end - start) )
