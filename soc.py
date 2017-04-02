@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 from datetime import datetime
 import time
 import requests, itertools, re
@@ -12,8 +12,8 @@ cY = repr(year % 100)
 nY = repr(year + 1 % 100)
 
 # This is the URL to the entire list of classes.
-SOC = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
-Subjects = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
+soc_url = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
+subjects_url = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
 
 # Input data besides classes.
 post_data = {
@@ -47,7 +47,7 @@ def get_quarters(URL, current=None):
 # Gets all the subjects listed in select menu.
 def get_subjects():
     # Makes the post request for the Subject Codes.
-    subjectPost = requests.post(Subjects)
+    subjectPost = requests.post(subjects_url)
     subjectSoup = BeautifulSoup(subjectPost.content, 'lxml')
 
     # Gets all the subject Codes for post request.
@@ -61,15 +61,16 @@ def get_subjects():
 
 # Updates term and post request using the current quarter by calling get_current_quarter.
 def update_term():
-    quarter = get_quarters(SOC, current='yes')
+    quarter = get_quarters(soc_url, current='yes')
     term = {'selectedTerm': quarter}
+    # term = {'selectedTerm': "SP17"}
     post_data.update(term)
     return quarter
 
 # Updates the post request and subjects selected by parsing URL2.
 def update_subjects():
-    # postData.update(getSubjects())
-    post_data.update({'selectedSubjects' : 'CSE'})
+    post_data.update(get_subjects())
+    # post_data.update({'selectedSubjects' : 'CSE'})
 
 # Calls updateSubjects & update_term to add to post data.
 def update_post():
@@ -79,18 +80,19 @@ def update_post():
 
 # Parses the data of one page.
 def get_data(url, page):
+    pstart = time.time()
+
     # Occasionally, the first call will fail.
     try:
         post = s.get(url)
     except:
         post = s.get(url)
 
+    pmiddle = time.time()
+    print (pmiddle - pstart)
+
     soup = BeautifulSoup(post.content, 'lxml')
     tr_elements = soup.findAll('tr')
-    span_elements = soup.findAll('span', {'class': 'centeralign'})
-
-    # Gets the list of departments in the current page.
-    departments = (str(x.text.partition("(")[2].partition(" ")[0]) for x in span_elements if ' )' in x.text)
 
     SOC = []
 
@@ -98,9 +100,14 @@ def get_data(url, page):
     for item in tr_elements:
         parsedText = str(" ".join(item.text.split()))
 
-        # Next one if you find selected text b/c new subject is shown.
-        if all(x in parsedText for x in ['Course Number', 'ID']):
-            currentDept = next(departments)
+        # Swaps between the departments based upon if our current tr_element is structured like a department header.
+        try:
+            # If we have this specific type, we have a 3-4 department code in our tag.
+            if (" )" in item.td.h2.text):
+                currentDept =  str(item.td.h2.text.partition("(")[2].partition(" ")[0])
+        # This means we were not on a department tr_element, so we skip it, and use our previous currentDept.
+        except AttributeError:
+            pass
 
         # The header of each class: units, department, course number, etc..
         if ('Units' in parsedText):
@@ -122,7 +129,7 @@ def get_data(url, page):
                 if (('FI' or 'MI') in parsedText):
                     SOC.append((parsedText))
 
-            if (itemClass == 'sectxt'):
+            elif (itemClass == 'sectxt'):
                 if 'Cancelled' not in parsedText:
                     # Assume there is no email.
                     email = 'No Email'
@@ -135,8 +142,12 @@ def get_data(url, page):
 
                     # SOC.append(email)
                     SOC.extend(('....' + parsedText, email))
+            else:
+                pass
 
+    pend = time.time()
     print ("Completed Page {} of {}").format(page, numberPages)
+    times.append(pend - pstart)
     return SOC
 
 # Parses the list elements into their readable values to store.
@@ -432,33 +443,66 @@ def format_list(ls):
 # The main function.
 def main():
     global s, numberPages
+    global times
+    times = []
 
     # Update postData and request session for previously parsed classes.
     update_post()
 
+    # XXX: A
+    check1 = time.time()
+
     s = requests.Session()
-    s.headers['User-Agent'] = 'Mozilla/5.0'
-    post = s.post(SOC, data=post_data)
+    s.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.0; WOW64; rv:24.0) Gecko/20100101 Firefox/24.0'
+
+    # TODO : BOTTLE NECK
+    post = s.post(soc_url, data=post_data)
+
+    # Occasionally, the post request will fail.
+    if (post.status_code != 200):
+        post = s.post(soc_url, data=post_data)
+
     soup = BeautifulSoup(post.content, 'lxml')
+
+    # XXX: B
+    check2 = time.time()
 
     # The total number of pages to parse and the current page starting at 1.
     numberPages = int(soup.text[re.search(r"Page", soup.text).start()+12:].partition(')')[0])
 
+    # XXX: C
+    check3 = time.time()
+
     pages = [x for x in xrange(1, numberPages + 1)]
-    urls = [SOC + str(x) for x in pages]
+    urls = [soc_url + str(x) for x in pages]
 
     # Gets the data using urls.
     results = [get_data(x,y) for (x,y) in itertools.izip(urls, pages)]
 
+    # XXX: D
+    check4 = time.time()
+
     # Format list into proper format
     results = format_list(results)
+
+    # XXX: E
+    check5 = time.time()
 
     # Parses items in list into usable portions.
     final = [parse_list(item) for item in results]
 
-    # for item in final:
-    #     print item
-    #     print '\n'
+    # XXX: F
+    check6 = time.time()
+
+    print('This is the break down of code timing:\n')
+    print('\t' + 'A --  ' + str(check1 - start))
+    print('\t' + 'B --  ' + str(check2 - start))
+    print('\t' + 'C --  ' + str(check3 - start))
+    print('\t' + 'D --  ' + str(check4 - start))
+    print('\t' + 'E --  ' + str(check5 - start))
+    print('\t' + 'F --  ' + str(check6 - start) + '\n')
+
+    print float(sum(times)) / max(len(times), 1)
 
     return final
 
@@ -466,7 +510,7 @@ def main():
 if __name__ == '__main__':
     Final = main()
 
-    with open("dataset.txt", "w") as file:
+    with open("dataset2.txt", "w") as file:
         for item in Final:
             for i in item:
                 file.write(str(i))
@@ -477,5 +521,5 @@ if __name__ == '__main__':
     # Ends the timer.
     end = time.time()
 
-    # Prints how long it took for program to run.
+    # Prints how long it took for program to run with checkpoints.
     print('\n' + str(end - start) )
