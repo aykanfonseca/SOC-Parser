@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup, SoupStrainer
+from bs4 import BeautifulSoup
 from datetime import datetime
 import time
 import requests, itertools, re
@@ -493,6 +493,8 @@ def main():
 
     # XXX: F
     check6 = time.time()
+
+    final.sort()
 
     print('This is the break down of code timing:\n')
     print('\t' + 'A --  ' + str(check1 - start))
