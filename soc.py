@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 from datetime import datetime
 import time
 import requests, itertools, re
@@ -14,6 +14,7 @@ nY = repr(year + 1 % 100)
 # This is the URL to the entire list of classes.
 soc_url = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
 subjects_url = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
+bookstore_url = 'https://ucsdbkst.ucsd.edu/wrtx/TextSearch?section='
 
 # Input data besides classes.
 post_data = {
@@ -25,9 +26,19 @@ post_data = {
     'schDayDept': ['M', 'T', 'W', 'R', 'F', 'S'], 'schStartTimeDept': '12:00',
     'schStartAmPmDept': '0', 'schEndTimeDept': '12:00', 'schEndAmPmDept': '0'}
 
+# Writes the data to a file.
+def writeToFile(ls):
+    with open("dataset2.txt", "w") as file:
+        for item in ls:
+            for i in item:
+                file.write(str(i))
+
+            file.write("\n")
+            file.write("\n")
+
 # Gets all the quarters listed in drop down menu.
 def get_quarters(URL, current=None):
-    quarters = requests.post(URL)
+    quarters = requests.get(URL)
     qSoup = BeautifulSoup(quarters.content, 'lxml')
 
     # Gets the rest of the quarters for the year.
@@ -88,9 +99,6 @@ def get_data(url, page):
     except:
         post = s.get(url)
 
-    pmiddle = time.time()
-    print (pmiddle - pstart)
-
     soup = BeautifulSoup(post.content, 'lxml')
     tr_elements = soup.findAll('tr')
 
@@ -102,9 +110,11 @@ def get_data(url, page):
 
         # Swaps between the departments based upon if our current tr_element is structured like a department header.
         try:
-            # If we have this specific type, we have a 3-4 department code in our tag.
-            if (" )" in item.td.h2.text):
-                currentDept =  str(item.td.h2.text.partition("(")[2].partition(" ")[0])
+            if item.td:
+                # If we have this specific type, we have a 3-4 department code in our tag.
+                if (" )" in item.td.h2.text):
+                    currentDept =  str(item.td.h2.text.partition("(")[2].partition(" ")[0])
+
         # This means we were not on a department tr_element, so we skip it, and use our previous currentDept.
         except AttributeError:
             pass
@@ -116,7 +126,7 @@ def get_data(url, page):
 
         # Final / Midterm Information, Section information (Discussion and Labs), and Email.
         else:
-            # Assume there isn't an item class.
+            # # Assume there isn't an item class.
             itemClass = ''
 
             # Check if there is an item  class.
@@ -140,7 +150,6 @@ def get_data(url, page):
                     except TypeError:
                         pass
 
-                    # SOC.append(email)
                     SOC.extend(('....' + parsedText, email))
             else:
                 pass
@@ -446,22 +455,20 @@ def main():
     global times
     times = []
 
+    # XXX: 0
+    check0 = time.time()
+
     # Update postData and request session for previously parsed classes.
-    update_post()
+    quarter = update_post()
 
     # XXX: A
     check1 = time.time()
 
     s = requests.Session()
-    s.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.0; WOW64; rv:24.0) Gecko/20100101 Firefox/24.0'
+    s.headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36'
 
     # TODO : BOTTLE NECK
     post = s.post(soc_url, data=post_data)
-
-    # Occasionally, the post request will fail.
-    if (post.status_code != 200):
-        post = s.post(soc_url, data=post_data)
-
     soup = BeautifulSoup(post.content, 'lxml')
 
     # XXX: B
@@ -494,9 +501,9 @@ def main():
     # XXX: F
     check6 = time.time()
 
-    final.sort()
-
+    # Does the printing of the timing statements.
     print('This is the break down of code timing:\n')
+    print('\t' + '0 --  ' + str(check0 - start))
     print('\t' + 'A --  ' + str(check1 - start))
     print('\t' + 'B --  ' + str(check2 - start))
     print('\t' + 'C --  ' + str(check3 - start))
@@ -512,13 +519,7 @@ def main():
 if __name__ == '__main__':
     Final = main()
 
-    with open("dataset2.txt", "w") as file:
-        for item in Final:
-            for i in item:
-                file.write(str(i))
-
-            file.write("\n")
-            file.write("\n")
+    writeToFile(Final)
 
     # Ends the timer.
     end = time.time()
