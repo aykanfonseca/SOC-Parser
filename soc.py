@@ -48,7 +48,7 @@ def get_quarters(URL, current=None):
 # Gets all the subjects listed in select menu.
 def get_subjects():
     # Makes the post request for the Subject Codes.
-    subjectPost = requests.post(subjects_url)
+    subjectPost = requests.post(subjects_url, stream=True)
     subjectSoup = BeautifulSoup(subjectPost.content, 'lxml')
 
     # Gets all the subject Codes for post request.
@@ -85,9 +85,9 @@ def get_data(url, page):
 
     # Occasionally, the first call will fail.
     try:
-        post = s.get(url)
+        post = s.get(url, stream=True)
     except:
-        post = s.get(url)
+        post = s.get(url, stream=True)
 
     pmiddle = time.time()
 
@@ -467,7 +467,7 @@ def main():
     s = CacheControl(s)
 
     # TODO : BOTTLE NECK
-    post = s.post(soc_url, data=post_data)
+    post = s.post(soc_url, data=post_data, stream=True)
     soup = BeautifulSoup(post.content, 'lxml')
 
     # XXX: B
