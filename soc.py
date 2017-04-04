@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup, SoupStrainer
 from datetime import datetime
 import time
 import requests, itertools, re
+from cachecontrol import CacheControl
 
 # Starts the timer.
 start = time.time()
@@ -80,13 +81,15 @@ def update_post():
 
 # Parses the data of one page.
 def get_data(url, page):
-    # pstart = time.time()
+    pstart = time.time()
 
     # Occasionally, the first call will fail.
     try:
         post = s.get(url)
     except:
         post = s.get(url)
+
+    pmiddle = time.time()
 
     soup = BeautifulSoup(post.content, 'lxml')
     tr_elements = soup.findAll('tr')
@@ -149,6 +152,7 @@ def get_data(url, page):
     # pend = time.time()
     print ("Completed Page {} of {}").format(page, numberPages)
     # times.append(pend - pstart)
+    rsum.append(pmiddle - pstart)
     return SOC
 
 # Parses the list elements into their readable values to store.
@@ -444,8 +448,10 @@ def format_list(ls):
 # The main function.
 def main():
     global s, numberPages
+    global rsum
     # global times
     times = []
+    rsum = []
 
     # XXX: 0
     # check0 = time.time()
@@ -458,6 +464,7 @@ def main():
 
     s = requests.Session()
     s.headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36'
+    s = CacheControl(s)
 
     # TODO : BOTTLE NECK
     post = s.post(soc_url, data=post_data)
@@ -491,6 +498,7 @@ def main():
     final = [parse_list(item) for item in results]
 
     final.sort()
+    print sum(rsum)
 
     # XXX: F
     # check6 = time.time()
@@ -516,7 +524,7 @@ if __name__ == '__main__':
     # Ends the timer.
     end = time.time()
 
-    with open("dataset.txt", "w") as file:
+    with open("dataset2.txt", "w") as file:
         for item in Final:
             for i in item:
                 file.write(str(i))
