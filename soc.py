@@ -14,7 +14,6 @@ nY = repr(year + 1 % 100)
 # This is the URL to the entire list of classes.
 soc_url = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
 subjects_url = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
-bookstore_url = 'https://ucsdbkst.ucsd.edu/wrtx/TextSearch?section='
 
 # Input data besides classes.
 post_data = {
@@ -25,16 +24,6 @@ post_data = {
     'schedOption1Dept': 'true', 'schedOption2Dept': 'true',
     'schDayDept': ['M', 'T', 'W', 'R', 'F', 'S'], 'schStartTimeDept': '12:00',
     'schStartAmPmDept': '0', 'schEndTimeDept': '12:00', 'schEndAmPmDept': '0'}
-
-# Writes the data to a file.
-def writeToFile(ls):
-    with open("dataset2.txt", "w") as file:
-        for item in ls:
-            for i in item:
-                file.write(str(i))
-
-            file.write("\n")
-            file.write("\n")
 
 # Gets all the quarters listed in drop down menu.
 def get_quarters(URL, current=None):
@@ -91,7 +80,7 @@ def update_post():
 
 # Parses the data of one page.
 def get_data(url, page):
-    pstart = time.time()
+    # pstart = time.time()
 
     # Occasionally, the first call will fail.
     try:
@@ -122,7 +111,9 @@ def get_data(url, page):
         # The header of each class: units, department, course number, etc..
         if ('Units' in parsedText):
             add = parsedText.partition(' Prereq')[0]
-            SOC.extend((' NXC', currentDept + ' ' + add))
+            SOC.append((' NXC'))
+            SOC.append((currentDept + " " + add))
+            # SOC.extend((' NXC', currentDept + ' ' + add))
 
         # Final / Midterm Information, Section information (Discussion and Labs), and Email.
         else:
@@ -150,13 +141,14 @@ def get_data(url, page):
                     except TypeError:
                         pass
 
-                    SOC.extend(('....' + parsedText, email))
+                    SOC.append(('....' + parsedText))
+                    SOC.append((email))
             else:
                 pass
 
-    pend = time.time()
+    # pend = time.time()
     print ("Completed Page {} of {}").format(page, numberPages)
-    times.append(pend - pstart)
+    # times.append(pend - pstart)
     return SOC
 
 # Parses the list elements into their readable values to store.
@@ -441,28 +433,28 @@ def parse_list(ls):
 # Formats the result list into the one we want
 def format_list(ls):
     # # Flattens list of lists into list.
-    parsedSOC = [item for sublist in ls for item in sublist]
+    parsedSOC = (item for sublist in ls for item in sublist)
 
     # Spliting a list into lists of lists based on a delimiter word.
-    parsedSOC = [list(y) for x, y in itertools.groupby(parsedSOC, lambda z: z == ' NXC') if not x]
+    parsedSOC = (list(y) for x, y in itertools.groupby(parsedSOC, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
-    return [x for x in parsedSOC if len(x) > 2 and not 'Cancelled' in x]
+    return (x for x in parsedSOC if len(x) > 2 and not 'Cancelled' in x)
 
 # The main function.
 def main():
     global s, numberPages
-    global times
+    # global times
     times = []
 
     # XXX: 0
-    check0 = time.time()
+    # check0 = time.time()
 
     # Update postData and request session for previously parsed classes.
     quarter = update_post()
 
     # XXX: A
-    check1 = time.time()
+    # check1 = time.time()
 
     s = requests.Session()
     s.headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36'
@@ -472,46 +464,48 @@ def main():
     soup = BeautifulSoup(post.content, 'lxml')
 
     # XXX: B
-    check2 = time.time()
+    # check2 = time.time()
 
     # The total number of pages to parse and the current page starting at 1.
     numberPages = int(soup.text[re.search(r"Page", soup.text).start()+12:].partition(')')[0])
 
     # XXX: C
-    check3 = time.time()
+    # check3 = time.time()
 
     pages = [x for x in xrange(1, numberPages + 1)]
-    urls = [soc_url + str(x) for x in pages]
+    urls = (soc_url + str(x) for x in pages)
 
     # Gets the data using urls.
-    results = [get_data(x,y) for (x,y) in itertools.izip(urls, pages)]
+    results = (get_data(x,y) for (x,y) in itertools.izip(urls, pages))
 
     # XXX: D
-    check4 = time.time()
+    # check4 = time.time()
 
     # Format list into proper format
     results = format_list(results)
 
     # XXX: E
-    check5 = time.time()
+    # check5 = time.time()
 
     # Parses items in list into usable portions.
     final = [parse_list(item) for item in results]
 
+    final.sort()
+
     # XXX: F
-    check6 = time.time()
+    # check6 = time.time()
 
     # Does the printing of the timing statements.
-    print('This is the break down of code timing:\n')
-    print('\t' + '0 --  ' + str(check0 - start))
-    print('\t' + 'A --  ' + str(check1 - start))
-    print('\t' + 'B --  ' + str(check2 - start))
-    print('\t' + 'C --  ' + str(check3 - start))
-    print('\t' + 'D --  ' + str(check4 - start))
-    print('\t' + 'E --  ' + str(check5 - start))
-    print('\t' + 'F --  ' + str(check6 - start) + '\n')
+    # print('This is the break down of code timing:\n')
+    # print('\t' + '0 --  ' + str(check0 - start))
+    # print('\t' + 'A --  ' + str(check1 - start))
+    # print('\t' + 'B --  ' + str(check2 - start))
+    # print('\t' + 'C --  ' + str(check3 - start))
+    # print('\t' + 'D --  ' + str(check4 - start))
+    # print('\t' + 'E --  ' + str(check5 - start))
+    # print('\t' + 'F --  ' + str(check6 - start) + '\n')
 
-    print float(sum(times)) / max(len(times), 1)
+    # print float(sum(times)) / max(len(times), 1)
 
     return final
 
@@ -519,10 +513,16 @@ def main():
 if __name__ == '__main__':
     Final = main()
 
-    writeToFile(Final)
-
     # Ends the timer.
     end = time.time()
+
+    with open("dataset.txt", "w") as file:
+        for item in Final:
+            for i in item:
+                file.write(str(i))
+
+            file.write("\n")
+            file.write("\n")
 
     # Prints how long it took for program to run with checkpoints.
     print('\n' + str(end - start) )
