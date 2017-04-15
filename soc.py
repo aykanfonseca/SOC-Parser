@@ -98,7 +98,10 @@ def get_data(url, page):
 
     # Used to switch departments.
     for item in tr_elements:
-        parsedText = str(" ".join(item.text.split()))
+        try:
+            parsedText = str(" ".join(item.text.split()).encode('utf-8'))
+        except UnicodeEncodeError:
+            return "error"
 
         # Swaps between the departments based upon if current tr_element is structured like a department header.
         try:
