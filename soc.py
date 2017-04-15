@@ -1,8 +1,10 @@
 from bs4 import BeautifulSoup, SoupStrainer
 from datetime import datetime
-import time
-import requests, itertools, re
 from cachecontrol import CacheControl
+import time
+import requests
+import itertools
+import re
 
 # Starts the timer.
 start = time.time()
@@ -12,22 +14,38 @@ year = datetime.now().year
 cY = repr(year % 100)
 nY = repr(year + 1 % 100)
 
-# This is the URL to the entire list of classes.
+# URL to the entire list of classes.
 soc_url = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
+
+# URL to get the 3 - 4 letter department codes.
 subjects_url = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
 
 # Input data besides classes.
 post_data = {
-    'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'contain',
-    'schDay': ['M', 'T', 'W', 'R', 'F', 'S'], 'schedOption1': 'true',
-    'schedOption2': 'true', 'schStartTime': '12:00', 'schStartAmPm': '0',
-    'schEndTime': '12:00', 'schEndAmPm': '0', 'tabNum': 'tabs-sub',
-    'schedOption1Dept': 'true', 'schedOption2Dept': 'true',
-    'schDayDept': ['M', 'T', 'W', 'R', 'F', 'S'], 'schStartTimeDept': '12:00',
-    'schStartAmPmDept': '0', 'schEndTimeDept': '12:00', 'schEndAmPmDept': '0'}
+    'loggedIn': 'false',
+    'instructorType': 'begin',
+    'titleType': 'contain',
+    'schDay': ['M', 'T', 'W', 'R', 'F', 'S'],
+    'schedOption1': 'true',
+    'schedOption2': 'true',
+    'schStartTime': '12:00',
+    'schStartAmPm': '0',
+    'schEndTime': '12:00',
+    'schEndAmPm': '0',
+    'tabNum': 'tabs-sub',
+    'schedOption1Dept': 'true',
+    'schedOption2Dept': 'true',
+    'schDayDept': ['M', 'T', 'W', 'R', 'F', 'S'],
+    'schStartTimeDept': '12:00',
+    'schStartAmPmDept': '0',
+    'schEndTimeDept': '12:00',
+    'schEndAmPmDept': '0'
+}
 
-# Gets all the quarters listed in drop down menu.
+
 def get_quarters(URL, current=None):
+    '''Gets all the quarters listed in drop down menu.'''
+
     quarters = requests.get(URL)
     qSoup = BeautifulSoup(quarters.content, 'lxml')
 
@@ -45,8 +63,10 @@ def get_quarters(URL, current=None):
 
     return quarters
 
-# Gets all the subjects listed in select menu.
+
 def get_subjects():
+    '''Gets all the subjects listed in select menu.'''
+
     # Makes the post request for the Subject Codes.
     subjectPost = requests.post(subjects_url, stream=True)
     subjectSoup = BeautifulSoup(subjectPost.content, 'lxml')
@@ -60,27 +80,35 @@ def get_subjects():
 
     return subjects
 
-# Updates term and post request using the current quarter by calling get_current_quarter.
+
 def update_term():
+    '''Updates term & post request using current quarter by calling get_quarter.'''
+
     quarter = get_quarters(soc_url, current='yes')
     term = {'selectedTerm': quarter}
     # term = {'selectedTerm': "SP17"}
     post_data.update(term)
     return quarter
 
-# Updates the post request and subjects selected by parsing URL2.
+
 def update_subjects():
+    '''Updates the post request and subjects selected by parsing URL2.'''
+
     post_data.update(get_subjects())
     # post_data.update({'selectedSubjects' : 'CSE'})
 
-# Calls updateSubjects & update_term to add to post data.
+
 def update_post():
+    '''Calls updateSubjects & update_term to add to post data.'''
+
     update_subjects()
     quarter = update_term()
     return quarter
 
-# Parses the data of one page.
+
 def get_data(url, page):
+    '''Parses the data of one page.'''
+
     pstart = time.time()
 
     # Occasionally, the first call will fail.
@@ -155,8 +183,10 @@ def get_data(url, page):
     times.append(pend - pstart)
     return SOC
 
-# Parses the list elements into their readable values to store.
+
 def parse_list(ls):
+    '''Parses the list elements into their readable values to store.'''
+
     # Components of a class.
     Header, Email, Final, Midterm, Section = [], [], [], [], []
 
@@ -434,8 +464,10 @@ def parse_list(ls):
 
     return [Header, Section, Email, Midterm, Final]
 
-# Formats the result list into the one we want
+
 def format_list(ls):
+    '''Formats the result list into the one we want.'''
+
     # # Flattens list of lists into list.
     parsedSOC = (item for sublist in ls for item in sublist)
 
@@ -445,8 +477,22 @@ def format_list(ls):
     # Sorts list based on sorting criteria.
     return (x for x in parsedSOC if len(x) > 2 and not 'Cancelled' in x)
 
-# The main function.
+
+def writeData(ls):
+    '''Writes the data to a file.'''
+
+    with open("dataset2.txt", "w") as file:
+        for item in ls:
+            for i in item:
+                file.write(str(i))
+
+            file.write("\n")
+            file.write("\n")
+
+
 def main():
+    '''The main function.'''
+
     global s, numberPages
     global times
     times = []
@@ -512,20 +558,17 @@ def main():
 
     return final
 
-# The main algorithm that employes functions to get the data.
+
 if __name__ == '__main__':
+    '''The main algorithm that employes functions to get the data.'''
+
     Final = main()
 
     # Ends the timer.
     end = time.time()
 
-    with open("dataset2.txt", "w") as file:
-        for item in Final:
-            for i in item:
-                file.write(str(i))
-
-            file.write("\n")
-            file.write("\n")
+    # Writes the data to a file.
+    writeData(Final)
 
     # Prints how long it took for program to run with checkpoints.
     print('\n' + str(end - start) )
