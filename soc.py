@@ -12,6 +12,11 @@ import requests
 from bs4 import BeautifulSoup
 from cachecontrol import CacheControl
 
+# Global Variables.
+s = requests.Session()
+numberPages = 0
+times = []
+
 # Starts the timer.
 start = time.time()
 
@@ -340,7 +345,7 @@ def parse_list(ls):
                         # Middle name.
                         try:
                             Section.append(name[2][1:].split(' ')[1])
-                        except:
+                        except IndexError:
                             Section.append('Blank')
 
                 # Adjust String.
@@ -398,7 +403,7 @@ def parse_list(ls):
                 # Middle name.
                 try:
                     Section.append(name[2].strip().split(' ')[1])
-                except:
+                except IndexError:
                     Section.append('Blank')
 
                 temp = S[num_loc:].strip().split(' ')
@@ -432,7 +437,7 @@ def parse_list(ls):
                 # Middle name.
                 try:
                     Section.append(name[2].strip().split(' ')[1])
-                except:
+                except IndexError:
                     Section.append('Blank')
 
                 # Blanks for both the seat information.
@@ -476,13 +481,13 @@ def format_list(ls):
     '''Formats the result list into the one we want.'''
 
     # Flattens list of lists into list.
-    parsedSOC = (item for sublist in ls for item in sublist)
+    parsed = (item for sublist in ls for item in sublist)
 
     # Groups list into lists of lists based on a delimiter word.
-    parsedSOC = (list(y) for x, y in itertools.groupby(parsedSOC, lambda z: z == ' NXC') if not x)
+    parsed = (list(y) for x, y in itertools.groupby(parsed, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
-    return (x for x in parsedSOC if len(x) > 2 and 'Cancelled' not in x)
+    return (x for x in parsed if len(x) > 2 and 'Cancelled' not in x)
 
 
 def write_data(ls):
@@ -500,17 +505,20 @@ def write_data(ls):
 def main():
     '''The main function.'''
 
-    global s, numberPages
+    # Global Variables.
+    global s
+    global numberPages
     global times
+
     times = []
 
-    # XXX: 0
+    # 0
     check0 = time.time()
 
     # Update postData and request session for previously parsed classes.
     quarter = update_post()
 
-    # XXX: A
+    # A
     check1 = time.time()
 
     s = requests.Session()
@@ -521,20 +529,20 @@ def main():
     post = s.post(soc_url, data=post_data, stream=True)
     soup = BeautifulSoup(post.content, 'lxml')
 
-    # XXX: B
+    # B
     check2 = time.time()
 
     # Define rough boundaries where the page number should be.
-    start = re.search(r"Page", soup.text).start() + 12
-    finish = start + 8
+    begin = int(re.search(r"Page", soup.text).start() + 12)
+    finish = begin + 8
 
     # The total number of pages to parse and the current page starting at 1.
-    numberPages = int(soup.text[start:finish].partition(')')[0])
+    numberPages = int(soup.text[begin:finish].partition(')')[0])
 
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, numberPages))
 
-    # XXX: C
+    # C
     check3 = time.time()
 
     pages = [x for x in xrange(1, numberPages + 1)]
@@ -543,19 +551,19 @@ def main():
     # Gets the data using urls.
     results = (get_data(x, y) for (x, y) in itertools.izip(urls, pages))
 
-    # XXX: D
+    # D
     check4 = time.time()
 
     # Format list into proper format
     results = (format_list(results))
 
-    # XXX: E
+    # E
     check5 = time.time()
 
     # Parses items in list into usable portions.
     final = [parse_list(item) for item in results]
 
-    # XXX: F
+    # F
     check6 = time.time()
 
     # Does the printing of the timing statements.
@@ -574,13 +582,13 @@ def main():
 
 
 if __name__ == '__main__':
-    Final = main()
+    done = main()
 
     # Ends the timer.
     end = time.time()
 
     # Writes the data to a file.
-    write_data(Final)
+    write_data(done)
 
     # Prints how long it took for program to run with checkpoints.
     print('\n' + str(end - start))
