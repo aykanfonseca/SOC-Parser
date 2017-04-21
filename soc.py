@@ -1,15 +1,20 @@
-from bs4 import BeautifulSoup, SoupStrainer
-from datetime import datetime
-from cachecontrol import CacheControl
-import time
-import requests
-import itertools
+'''Python program to scrape UC San Diego's Schedule of Classes.'''
+
+# Builtins.
 import re
+import itertools
+import time
+from datetime import datetime
+
+# Pip install packages.
+import requests
+from bs4 import BeautifulSoup
+from cachecontrol import CacheControl
 
 # Starts the timer.
 start = time.time()
 
-# Relevant Year Data for current year (cYear) and next year (nYear) but only the last two digits.
+# Current year (cYear) and next year (nYear) but only the last two digits.
 year = datetime.now().year
 cY = repr(year % 100)
 nY = repr(year + 1 % 100)
@@ -82,11 +87,12 @@ def get_subjects():
 
 
 def update_term():
-    '''Updates term & post request using current quarter by calling get_quarter.'''
+    '''Updates post request using current quarter by calling get_quarter.'''
 
     quarter = get_quarters(soc_url, current='yes')
     term = {'selectedTerm': quarter}
     # term = {'selectedTerm': "SP17"}
+    # term = {'selectedTerm': "WI17"}
     post_data.update(term)
     return quarter
 
@@ -96,6 +102,7 @@ def update_subjects():
 
     post_data.update(get_subjects())
     # post_data.update({'selectedSubjects' : 'CSE'})
+    # post_data.update({'selectedSubjects' : 'BENG'})
 
 
 def update_post():
@@ -114,7 +121,7 @@ def get_data(url, page):
     # Occasionally, the first call will fail.
     try:
         post = s.get(url, stream=True)
-    except:
+    except requests.exceptions.HTTPError:
         post = s.get(url, stream=True)
 
     # Parse the response into HTML and look only for tr tags.
@@ -131,23 +138,24 @@ def get_data(url, page):
         except UnicodeEncodeError:
             return "error"
 
-        # Swaps between the departments based upon if current tr_element is structured like a department header.
+        # Changes department if tr_element looks like a department header.
         try:
             if item.td:
-                # If we have this specific type, we have a 3-4 department code in our tag.
+                # We have a 3-4 department code in our tag.
                 if (" )" in item.td.h2.text):
-                    currentDept =  str(item.td.h2.text.partition("(")[2].partition(" ")[0])
+                    currentDept = str(item.td.h2.text.partition("(")[2].partition(" ")[0])
 
-        # This means we were not on a department tr_element, so we skip it, and use our previous currentDept.
+        # Not on a department, so skip it, and use previous currentDept.
         except AttributeError:
             pass
 
         # The header of each class: units, department, course number, etc..
         if ('Units' in parsedText):
+            SOC.append(' NXC')
             add = parsedText.partition(' Prereq')[0]
             SOC.append((currentDept + " " + add))
 
-        # Final / Midterm Information, Section information (Discussion and Labs), and Email.
+        # Exam Information, Section information, and Email.
         else:
             # # Assume there isn't an item class.
             itemClass = ''
@@ -190,42 +198,48 @@ def parse_list(ls):
     # Components of a class.
     Header, Email, Final, Midterm, Section = [], [], [], [], []
 
+    number_regex = re.compile(r'\d+')
+    days_regex = re.compile(r'[A-Z][^A-Z]*')
+
     for item in ls:
         # Find class information.
         if 'Units' in item:
             # Department.
-            C_department = item.partition(' ')[0].strip()
+            C_department = item.partition(' ')[0]
             Header.append(C_department)
-            num_loc = re.search(r'\d+', item).start()
+            num_loc = number_regex.search(item).start()
 
             # Course Number.
-            C_number = item[num_loc:].partition(' ')[0].strip()
+            C_number = item[num_loc:].partition(' ')[0]
+
             Header.append(C_number)
 
+            # Temporary variable to make lines shorter and save time.
+            temp = item.partition('( ')
+
             # Name.
-            Header.append(item.partition('( ')[0][len(C_number) + 1 + num_loc:].strip())
+            Header.append(temp[0][len(C_number) + 1 + num_loc: -1])
 
             # Units.
-            Header.append(item.partition('( ')[2].partition('s)')[0]+'s')
+            Header.append(temp[2].partition(')')[0])
 
             # Restrictions.
             if num_loc != len(C_department) + 1:
-                Header.append(item[len(C_department) + 1:num_loc].strip())
+
+                Header.append(item[len(C_department) + 1: num_loc - 1])
             else:
                 Header.append('No Restrictions')
-        pass
 
-        # TODO : What happens if there are two emails? Need to modify getData as well.
+        # TODO: What happens with two emails? Need to modify getData as well.
 
         # Find Email Info.
         if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in Email):
             if (len(Email) == 0) or ('No Email' not in item):
                 Email.append(item.strip())
-        pass
 
         # Finds Section Info.
         if ('....' in item):
-            num_loc = re.search(r'\d+', item).start()
+            num_loc = number_regex.search(item).start()
             S = item.split(' ')
 
             # ID.
@@ -244,7 +258,7 @@ def parse_list(ls):
 
             # Days: so MWF would have separate entries, M, W, F.
             if S[0] != 'TBA':
-                temp = re.findall('[A-Z][^A-Z]*', S[0])
+                temp = days_regex.findall(S[0])
                 # Day 1, Day 2, and Day 3.
                 if len(temp) == 3:
                     Section.extend(temp)
@@ -291,7 +305,7 @@ def parse_list(ls):
 
             # Find position of first number in string.
             try:
-                num_loc = re.search(r'\d+', S).start()
+                num_loc = number_regex.search(S).start()
             except AttributeError:
                 num_loc = 0
 
@@ -350,7 +364,7 @@ def parse_list(ls):
                     # Middle name.
                     try:
                         Section.append(name.partition(',')[2].strip().split(' ')[1])
-                    except:
+                    except IndexError:
                         Section.append('Blank')
 
                     # Seat information.
@@ -384,7 +398,7 @@ def parse_list(ls):
                 Section.append(temp[1])
 
             # Just staff and no seat information.
-            elif S.strip() == 'Staff':
+            elif (S.strip() == 'Staff'):
                 Section.append('Staff')
                 Section.append('Blank')
                 Section.append('Blank')
@@ -392,7 +406,7 @@ def parse_list(ls):
                 Section.append('Blank')
 
             # Name and no seat information.
-            elif num_loc == 0:
+            elif (num_loc == 0):
                 name = S.strip()
 
                 # First name.
@@ -424,43 +438,28 @@ def parse_list(ls):
                 Section.append('Blank')
                 Section.append('Blank')
                 Section.append('Blank')
-        pass
 
-        # Finds Final Info.
-        if 'FI' in item:
-            F = item.split(' ')
+        # Finds Final / Midterm Info.
+        if ('FI' or 'MI') in item:
+            Exam = item.split(' ')
 
-            # Date and Day.
-            Final.extend(F[1:3])
+            temp = []
 
-            # The start and end times.
-            if F[3] != 'TBA':
-                Final.extend(F[3].partition('-')[::2])
-            else:
-                Final.append('TBA')
-                Final.append('TBA')
-
-            # Building and Room.
-            Final.extend(F[4:])
-        pass
-
-        # Finds Midterm Info.
-        if 'MI' in item:
-            M = item.split(' ')
-
-            # Date and Day.
-            Midterm.extend(M[1:3])
+            temp.extend(Exam[1:3])
 
             # The start and end times.
-            if M[3] != 'TBA':
-                Midterm.extend(M[3].partition('-')[::2])
+            if Exam[3] != 'TBA':
+                temp.extend(Exam[3].partition('-')[::2])
             else:
-                Midterm.append('TBA')
-                Midterm.append('TBA')
+                temp.append('TBA')
+                temp.append('TBA')
 
-            # Building and Room.
-            Midterm.extend(M[4:])
-        pass
+            temp.extend(Exam[4:])
+
+            if ('FI' in item):
+                Final = temp
+            else:
+                Midterm = temp
 
     return [Header, Section, Email, Midterm, Final]
 
@@ -468,26 +467,26 @@ def parse_list(ls):
 def format_list(ls):
     '''Formats the result list into the one we want.'''
 
-    # # Flattens list of lists into list.
+    # Flattens list of lists into list.
     parsedSOC = (item for sublist in ls for item in sublist)
 
-    # Spliting a list into lists of lists based on a delimiter word.
+    # Groups list into lists of lists based on a delimiter word.
     parsedSOC = (list(y) for x, y in itertools.groupby(parsedSOC, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
-    return (x for x in parsedSOC if len(x) > 2 and not 'Cancelled' in x)
+    return (x for x in parsedSOC if (len(x) > 2 and 'Cancelled' not in x))
 
 
-def writeData(ls):
+def write_data(ls):
     '''Writes the data to a file.'''
 
-    with open("dataset2.txt", "w") as file:
+    with open("dataset2.txt", "w") as openFile:
         for item in ls:
             for i in item:
-                file.write(str(i))
+                openFile.write(str(i))
 
-            file.write("\n")
-            file.write("\n")
+            openFile.write("\n")
+            openFile.write("\n")
 
 
 def main():
@@ -498,16 +497,16 @@ def main():
     times = []
 
     # XXX: 0
-    # check0 = time.time()
+    check0 = time.time()
 
     # Update postData and request session for previously parsed classes.
     quarter = update_post()
 
     # XXX: A
-    # check1 = time.time()
+    check1 = time.time()
 
     s = requests.Session()
-    s.headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36'
+    s.headers['User-Agent'] = 'Mozilla/5.0'
     s = CacheControl(s)
 
     # TODO : BOTTLE NECK
@@ -515,44 +514,47 @@ def main():
     soup = BeautifulSoup(post.content, 'lxml')
 
     # XXX: B
-    # check2 = time.time()
+    check2 = time.time()
 
     # The total number of pages to parse and the current page starting at 1.
     numberPages = int(soup.text[re.search(r"Page", soup.text).start()+12:].partition(')')[0])
 
+    # Prints which quarter we are fetching data from and how many pages.
+    print("--Fetching data for {} from {} pages--\n").format(quarter, numberPages)
+
     # XXX: C
-    # check3 = time.time()
+    check3 = time.time()
 
     pages = [x for x in xrange(1, numberPages + 1)]
     urls = (soc_url + str(x) for x in pages)
 
     # Gets the data using urls.
-    results = (get_data(x,y) for (x,y) in itertools.izip(urls, pages))
+    results = (get_data(x, y) for (x, y) in itertools.izip(urls, pages))
 
     # XXX: D
-    # check4 = time.time()
+    check4 = time.time()
 
     # Format list into proper format
-    results = format_list(results)
+    results = (format_list(results))
 
     # XXX: E
-    # check5 = time.time()
+    check5 = time.time()
 
     # Parses items in list into usable portions.
     final = [parse_list(item) for item in results]
 
     # XXX: F
-    # check6 = time.time()
+    check6 = time.time()
 
     # Does the printing of the timing statements.
-    # print('This is the break down of code timing:\n')
-    # print('\t' + '0 --  ' + str(check0 - start))
-    # print('\t' + 'A --  ' + str(check1 - start))
-    # print('\t' + 'B --  ' + str(check2 - start))
-    # print('\t' + 'C --  ' + str(check3 - start))
-    # print('\t' + 'D --  ' + str(check4 - start))
-    # print('\t' + 'E --  ' + str(check5 - start))
-    # print('\t' + 'F --  ' + str(check6 - start) + '\n')
+    print('This is the break down of code timing:\n')
+    print('\t' + '0 --  ' + str(check0 - start))
+    print('\t' + 'A --  ' + str(check1 - start))
+    print('\t' + 'B --  ' + str(check2 - start))
+    print('\t' + 'C --  ' + str(check3 - start))
+    print('\t' + 'D --  ' + str(check4 - start))
+    print('\t' + 'E --  ' + str(check5 - start))
+    print('\t' + 'F --  ' + str(check6 - start) + '\n')
 
     print float(sum(times)) / max(len(times), 1)
 
@@ -560,15 +562,13 @@ def main():
 
 
 if __name__ == '__main__':
-    '''The main algorithm that employes functions to get the data.'''
-
     Final = main()
 
     # Ends the timer.
     end = time.time()
 
     # Writes the data to a file.
-    writeData(Final)
+    write_data(Final)
 
     # Prints how long it took for program to run with checkpoints.
-    print('\n' + str(end - start) )
+    print('\n' + str(end - start))
