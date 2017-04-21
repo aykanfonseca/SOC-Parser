@@ -1,6 +1,7 @@
 '''Python program to scrape UC San Diego's Schedule of Classes.'''
 
-# Builtins.
+# Builtins. Note: from__future__ is required to be first.
+from __future__ import print_function
 import re
 import itertools
 import time
@@ -79,7 +80,7 @@ def get_subjects():
     # Gets all the subject Codes for post request.
     subjects = {}
     for x in subjectSoup.findAll('td'):
-        if (len(x.text) <= 4):
+        if len(x.text) <= 4:
             if str(x.text).isupper():
                 subjects.setdefault('selectedSubjects', []).append(str(x.text))
 
@@ -140,17 +141,18 @@ def get_data(url, page):
 
         # Changes department if tr_element looks like a department header.
         try:
-            if item.td:
-                # We have a 3-4 department code in our tag.
-                if (" )" in item.td.h2.text):
-                    currentDept = str(item.td.h2.text.partition("(")[2].partition(" ")[0])
+            check = item.td.h2.text
+
+            # We have a 3-4 department code in our tag.
+            if " )" in check:
+                currentDept = str(check.partition("(")[2].partition(" ")[0])
 
         # Not on a department, so skip it, and use previous currentDept.
         except AttributeError:
             pass
 
         # The header of each class: units, department, course number, etc..
-        if ('Units' in parsedText):
+        if 'Units' in parsedText:
             SOC.append(' NXC')
             add = parsedText.partition(' Prereq')[0]
             SOC.append((currentDept + " " + add))
@@ -166,11 +168,11 @@ def get_data(url, page):
             except KeyError:
                 pass
 
-            if (itemClass == 'nonenrtxt'):
-                if (('FI' or 'MI') in parsedText):
+            if itemClass == 'nonenrtxt':
+                if ('FI' or 'MI') in parsedText:
                     SOC.append((parsedText))
 
-            elif (itemClass == 'sectxt'):
+            elif itemClass == 'sectxt':
                 if 'Cancelled' not in parsedText:
                     # Assume there is no email.
                     email = 'No Email'
@@ -187,7 +189,7 @@ def get_data(url, page):
                 pass
 
     pend = time.time()
-    print ("Completed Page {} of {}").format(page, numberPages)
+    print ("Completed Page {} of {}".format(page, numberPages))
     times.append(pend - pstart)
     return SOC
 
@@ -196,7 +198,11 @@ def parse_list(ls):
     '''Parses the list elements into their readable values to store.'''
 
     # Components of a class.
-    Header, Email, Final, Midterm, Section = [], [], [], [], []
+    Header = []
+    Email = []
+    Final = []
+    Midterm = []
+    Section = []
 
     number_regex = re.compile(r'\d+')
     days_regex = re.compile(r'[A-Z][^A-Z]*')
@@ -238,12 +244,12 @@ def parse_list(ls):
                 Email.append(item.strip())
 
         # Finds Section Info.
-        if ('....' in item):
+        if '....' in item:
             num_loc = number_regex.search(item).start()
             S = item.split(' ')
 
             # ID.
-            if (num_loc == 4):
+            if num_loc == 4:
                 Section.append(item[4:10].strip())
                 S = S[1:]
             else:
@@ -283,7 +289,7 @@ def parse_list(ls):
                 Section.append('Blank')
                 Section.append('Blank')
 
-            # Adjust list in the case that the time was given, but not the building or room.
+            # Adjust list because time was given, but not building or room.
             if (len(S) > 1) and (S[0] == S[1] == 'TBA'):
                 S = S[1:]
 
@@ -312,7 +318,8 @@ def parse_list(ls):
             # Handles Teacher, Seats Taken, and Seats Offered.
             if 'FULL' in S:
                 temp = S.find('FULL')
-                if (temp == 0):
+
+                if temp == 0:
                     Section.append('Blank')
                     Section.append('Blank')
                     Section.append('Blank')
@@ -322,16 +329,17 @@ def parse_list(ls):
                         Section.append('Blank')
                         Section.append('Blank')
                     else:
-                        name = S[:temp].strip()
+                        name = S[:temp - 1].partition(',')
 
                         # First name.
-                        Section.append(name.partition(',')[0])
+                        Section.append(name[0])
+
                         # Last name.
-                        Section.append(name.partition(',')[2].strip().split(' ')[0])
+                        Section.append(name[2][1:].split(' ')[0])
 
                         # Middle name.
                         try:
-                            Section.append(name.partition(',')[2].strip().split(' ')[1])
+                            Section.append(name[2][1:].split(' ')[1])
                         except:
                             Section.append('Blank')
 
@@ -354,16 +362,16 @@ def parse_list(ls):
                     Section.append('Unlim')
                     Section.append('Unlim')
                 else:
-                    name = S[:S.find('Unlim')-1]
+                    name = S[:S.find('Unlim')-1].partition(',')
 
                     # First name.
-                    Section.append(name.partition(',')[0])
+                    Section.append(name[0])
                     # Last name.
-                    Section.append(name.partition(',')[2].strip().split(' ')[0])
+                    Section.append(name[2].strip().split(' ')[0])
 
                     # Middle name.
                     try:
-                        Section.append(name.partition(',')[2].strip().split(' ')[1])
+                        Section.append(name[2].strip().split(' ')[1])
                     except IndexError:
                         Section.append('Blank')
 
@@ -373,23 +381,23 @@ def parse_list(ls):
 
             # Name and seat information.
             elif num_loc != 0:
-                name = S[:num_loc].strip()
+                name = S[:num_loc].strip().partition(',')
 
                 # First name.
-                if (name.partition(',')[0] != ''):
-                    Section.append(name.partition(',')[0])
+                if name[0] != '':
+                    Section.append(name[0])
                 else:
                     Section.append('Blank')
 
                 # Last name.
-                if (name.partition(',')[2].strip().split(' ')[0] != ''):
-                    Section.append(name.partition(',')[2].strip().split(' ')[0])
+                if name[2].strip().split(' ')[0] != '':
+                    Section.append(name[2].strip().split(' ')[0])
                 else:
                     Section.append('Blank')
 
                 # Middle name.
                 try:
-                    Section.append(name.partition(',')[2].strip().split(' ')[1])
+                    Section.append(name[2].strip().split(' ')[1])
                 except:
                     Section.append('Blank')
 
@@ -398,7 +406,7 @@ def parse_list(ls):
                 Section.append(temp[1])
 
             # Just staff and no seat information.
-            elif (S.strip() == 'Staff'):
+            elif S.strip() == 'Staff':
                 Section.append('Staff')
                 Section.append('Blank')
                 Section.append('Blank')
@@ -406,24 +414,24 @@ def parse_list(ls):
                 Section.append('Blank')
 
             # Name and no seat information.
-            elif (num_loc == 0):
-                name = S.strip()
+            elif num_loc == 0:
+                name = S.strip().partition(',')
 
                 # First name.
-                if (name.partition(',')[0] != ''):
-                    Section.append(name.partition(',')[0])
+                if name[0] != '':
+                    Section.append(name[0])
                 else:
                     Section.append('Blank')
 
                 # Last name.
-                if (name.partition(',')[2].strip().split(' ')[0] != ''):
-                    Section.append(name.partition(',')[2].strip().split(' ')[0])
+                if name[2].strip().split(' ')[0] != '':
+                    Section.append(name[2].strip().split(' ')[0])
                 else:
                     Section.append('Blank')
 
                 # Middle name.
                 try:
-                    Section.append(name.partition(',')[2].strip().split(' ')[1])
+                    Section.append(name[2].strip().split(' ')[1])
                 except:
                     Section.append('Blank')
 
@@ -456,7 +464,7 @@ def parse_list(ls):
 
             temp.extend(Exam[4:])
 
-            if ('FI' in item):
+            if 'FI' in item:
                 Final = temp
             else:
                 Midterm = temp
@@ -474,13 +482,13 @@ def format_list(ls):
     parsedSOC = (list(y) for x, y in itertools.groupby(parsedSOC, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
-    return (x for x in parsedSOC if (len(x) > 2 and 'Cancelled' not in x))
+    return (x for x in parsedSOC if len(x) > 2 and 'Cancelled' not in x)
 
 
 def write_data(ls):
     '''Writes the data to a file.'''
 
-    with open("dataset2.txt", "w") as openFile:
+    with open("dataset3.txt", "w") as openFile:
         for item in ls:
             for i in item:
                 openFile.write(str(i))
@@ -516,11 +524,15 @@ def main():
     # XXX: B
     check2 = time.time()
 
+    # Define rough boundaries where the page number should be.
+    start = re.search(r"Page", soup.text).start() + 12
+    finish = start + 8
+
     # The total number of pages to parse and the current page starting at 1.
-    numberPages = int(soup.text[re.search(r"Page", soup.text).start()+12:].partition(')')[0])
+    numberPages = int(soup.text[start:finish].partition(')')[0])
 
     # Prints which quarter we are fetching data from and how many pages.
-    print("--Fetching data for {} from {} pages--\n").format(quarter, numberPages)
+    print("Fetching data for {} from {} pages\n".format(quarter, numberPages))
 
     # XXX: C
     check3 = time.time()
@@ -556,7 +568,7 @@ def main():
     print('\t' + 'E --  ' + str(check5 - start))
     print('\t' + 'F --  ' + str(check6 - start) + '\n')
 
-    print float(sum(times)) / max(len(times), 1)
+    print(float(sum(times)) / max(len(times), 1))
 
     return final
 
