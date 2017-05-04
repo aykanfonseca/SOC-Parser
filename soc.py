@@ -202,25 +202,25 @@ def parse_list_sections(section, item):
     days_regex = re.compile(r'[A-Z][^A-Z]*')
 
     num_loc = number_regex.search(item).start()
-    S = item.split(' ')
+    to_parse = item.split(' ')
 
     # ID.
     if num_loc == 4:
         section.append(item[4:10].strip())
-        S = S[1:]
+        to_parse = to_parse[1:]
     else:
         section.append('Blank')
-        S[0] = S[0][4:]
+        to_parse[0] = to_parse[0][4:]
 
     # Meeting type and Section.
-    section.extend(S[0:2])
+    section.extend(to_parse[0:2])
 
     # Readjust the list.
-    S = S[2:]
+    to_parse = to_parse[2:]
 
     # Days: so MWF would have separate entries, M, W, F.
-    if S[0] != 'TBA':
-        temp = days_regex.findall(S[0])
+    if to_parse[0] != 'TBA':
+        temp = days_regex.findall(to_parse[0])
         # Day 1, Day 2, and Day 3.
         if len(temp) == 3:
             section.extend(temp)
@@ -228,54 +228,54 @@ def parse_list_sections(section, item):
             section.extend((temp, 'Blank'))
         if len(temp) == 1:
             section.extend((temp[0], 'Blank', 'Blank'))
-        S = S[1:]
+        to_parse = to_parse[1:]
     else:
         section.extend(('Blank', 'Blank', 'Blank'))
 
     # The times.
-    if S[0] != 'TBA':
-        section.extend(S[0].partition('-')[::2])
-        S = S[1:]
+    if to_parse[0] != 'TBA':
+        section.extend(to_parse[0].partition('-')[::2])
+        to_parse = to_parse[1:]
     else:
         section.extend(('Blank', 'Blank'))
 
     # Adjust list because time was given, but not building or room.
-    if (len(S) > 1) and (S[0] == S[1] == 'TBA'):
-        S = S[1:]
+    if (len(to_parse) > 1) and (to_parse[0] == to_parse[1] == 'TBA'):
+        to_parse = to_parse[1:]
 
     # The Building.
-    if S[0] != 'TBA':
-        section.append(S[0])
-        S = S[1:]
+    if to_parse[0] != 'TBA':
+        section.append(to_parse[0])
+        to_parse = to_parse[1:]
     else:
         section.append('Blank')
 
     # The Room.
-    if S[0] != 'TBA':
-        section.append(S[0])
+    if to_parse[0] != 'TBA':
+        section.append(to_parse[0])
     else:
         section.append('Blank')
 
     # Readjust the list.
-    S = ' '.join(S[1:])
+    to_parse = ' '.join(to_parse[1:])
 
     # Find position of first number in string.
     try:
-        num_loc = number_regex.search(S).start()
+        num_loc = number_regex.search(to_parse).start()
     except AttributeError:
         num_loc = 0
 
     # Handles Teacher, Seats Taken, and Seats Offered.
-    if 'FULL' in S:
-        temp = S.find('FULL')
+    if 'FULL' in to_parse:
+        temp = to_parse.find('FULL')
 
         if temp == 0:
             section.extend(('Blank', 'Blank', 'Blank'))
         else:
-            if 'Staff' in S:
+            if 'Staff' in to_parse:
                 section.extend(('Staff', 'Blank', 'Blank'))
             else:
-                name = S[:temp - 1].partition(',')
+                name = to_parse[:temp - 1].partition(',')
 
                 # First name & last name.
                 section.extend((name[0], name[2][1:].split(' ')[0]))
@@ -287,20 +287,20 @@ def parse_list_sections(section, item):
                     section.append('Blank')
 
         # Adjust String.
-        S = S[temp:]
+        to_parse = to_parse[temp:]
 
         # Seats Taken.
-        section.append(S[:(S.find(')')+1)])
+        section.append(to_parse[:(to_parse.find(')')+1)])
 
         # Seats Available.
-        section.append(S[(S.find(')')+2):])
+        section.append(to_parse[(to_parse.find(')')+2):])
 
-    elif 'Unlim' in S:
-        if 'Staff ' in S:
+    elif 'Unlim' in to_parse:
+        if 'Staff ' in to_parse:
             # First, Last, middle names & Seat Information.
             section.extend(('Staff', 'Blank', 'Blank', 'Unlim', 'Unlim'))
         else:
-            name = S[:S.find('Unlim')-1].partition(',')
+            name = to_parse[:to_parse.find('Unlim')-1].partition(',')
 
             # First name & last name.
             section.extend((name[0], name[2].strip().split(' ')[0]))
@@ -316,7 +316,7 @@ def parse_list_sections(section, item):
 
     # Name and seat information.
     elif num_loc != 0:
-        name = S[:num_loc].strip().partition(',')
+        name = to_parse[:num_loc].strip().partition(',')
 
         # First name.
         if name[0] != '':
@@ -336,16 +336,16 @@ def parse_list_sections(section, item):
         except IndexError:
             section.append('Blank')
 
-        temp = S[num_loc:].strip().split(' ')
+        temp = to_parse[num_loc:].strip().split(' ')
         section.extend((temp[0], temp[1]))
 
     # Just staff and no seat information.
-    elif S.strip() == 'Staff':
+    elif to_parse.strip() == 'Staff':
         section.extend(('Staff', 'Blank', 'Blank', 'Blank', 'Blank'))
 
     # Name and no seat information.
     elif num_loc == 0:
-        name = S.strip().partition(',')
+        name = to_parse.strip().partition(',')
 
         # First name.
         if name[0] != '':
@@ -414,11 +414,11 @@ def parse_list(ls):
             else:
                 header.append('No Restrictions')
 
-        # TODO: What happens with two emails? Need to modify getData as well.
+        # What happens with two emails? Need to modify getData as well.
 
         # Find Email Info.
         if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in email):
-            if (len(email) == 0) or ('No Email' not in item):
+            if (not email) or ('No Email' not in item):
                 email.append(item.strip())
 
         # Finds Section Info.
@@ -559,13 +559,13 @@ def main():
 
 
 if __name__ == '__main__':
-    done = main()
+    DONE = main()
 
     # Ends the timer.
-    end = time.time()
+    END = time.time()
 
     # Writes the data to a file.
-    write_data(done)
+    write_data(DONE)
 
     # Prints how long it took for program to run with checkpoints.
-    print('\n' + str(end - start))
+    print('\n' + str(END - start))
