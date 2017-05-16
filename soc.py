@@ -21,8 +21,13 @@ times2 = []
 # Starts the timer.
 start = time.time()
 
+# Create a timestamp for the start of scrape to serve as hash into seats for the particular scrape.
+timestamp = datetime.now()
+
+stamp = int(''.join([str(timestamp.year), str(timestamp.month), str(timestamp.day), str(timestamp.hour)]))
+
 # Current year (CY) and next year (NY) but only the last two digits.
-YEAR = datetime.now().year
+YEAR = timestamp.year
 CY = repr(YEAR % 100)
 NY = repr(YEAR + 1 % 100)
 
@@ -58,7 +63,7 @@ POST_DATA = {
 def get_quarters(url, current=None):
     '''Gets all the quarters listed in drop down menu.'''
 
-    quarters = requests.get(url)
+    quarters = s.get(url, stream=True)
     q_soup = BeautifulSoup(quarters.content, 'lxml')
 
     # Gets the rest of the quarters for the year.
@@ -80,15 +85,12 @@ def get_subjects():
     '''Gets all the subjects listed in select menu.'''
 
     # Makes the post request for the Subject Codes.
-    subject_post = requests.post(SUBJECTS_URL, stream=True)
-    subject_soup = BeautifulSoup(subject_post.content, 'lxml')
+    subject_post = requests.post(SUBJECTS_URL)
+    soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
-    # Gets all the subject Codes for post request.
-    subjects = {}
-    for i in subject_soup.findAll('td'):
-        if len(i.text) <= 4:
-            if str(i.text).isupper():
-                subjects.setdefault('selectedSubjects', []).append(str(i.text))
+    # Gets all the subject codes for post request.
+    subjects = dict()
+    subjects['selectedSubjects'] = [str(i.text) for i in soup if len(i.text) <= 4]
 
     return subjects
 
@@ -97,7 +99,8 @@ def update_term():
     '''Updates post request using current quarter by calling get_quarter.'''
 
     quarter = get_quarters(SOC_URL, current='yes')
-    term = {'selectedTerm': quarter}
+    # term = {'selectedTerm': quarter}
+    term = {'selectedTerm': "SA17"}
     # term = {'selectedTerm': "SP17"}
     # term = {'selectedTerm': "WI17"}
     POST_DATA.update(term)
@@ -107,8 +110,8 @@ def update_term():
 def update_subjects():
     '''Updates the post request and subjects selected by parsing URL2.'''
 
-    POST_DATA.update(get_subjects())
-    # POST_DATA.update({'selectedSubjects' : 'CSE'})
+    # POST_DATA.update(get_subjects())
+    POST_DATA.update({'selectedSubjects' : 'CSE'})
     # POST_DATA.update({'selectedSubjects' : 'BENG'})
 
 
@@ -116,8 +119,7 @@ def update_post():
     '''Calls updateSubjects & update_term to add to post data.'''
 
     update_subjects()
-    quarter = update_term()
-    return quarter
+    return update_term()
 
 
 def get_data(url, page):
@@ -131,13 +133,13 @@ def get_data(url, page):
     except requests.exceptions.HTTPError:
         post = s.get(url, stream=True)
 
-    pstart2 = time.time()
-
     # Parse the response into HTML and look only for tr tags.
     tr_elements = BeautifulSoup(post.content, 'lxml').findAll('tr')
 
     # This will contain all the classes for a single page.
     page_list = []
+
+    pstart2 = time.time()
 
     # Used to switch departments.
     for item in tr_elements:
@@ -190,12 +192,12 @@ def get_data(url, page):
 
     pend = time.time()
     print ("Completed Page {} of {}".format(page, number_pages))
-    times.append(pend - pstart2)
-    times2.append(pstart2 - pstart)
+    times2.append(pend - pstart2)
+    times.append(pstart2 - pstart)
     return page_list
 
 
-def parse_list_sections(section, item):
+def parse_list_sections(section, tracker, item):
     '''Parses the section information for parse_list.'''
 
     number_regex = re.compile(r'\d+')
@@ -225,7 +227,8 @@ def parse_list_sections(section, item):
         if len(temp) == 3:
             section.extend(temp)
         if len(temp) == 2:
-            section.extend((temp, 'Blank'))
+            section.extend(temp)
+            section.append('Blank')
         if len(temp) == 1:
             section.extend((temp[0], 'Blank', 'Blank'))
         to_parse = to_parse[1:]
@@ -289,6 +292,9 @@ def parse_list_sections(section, item):
         # Adjust String.
         to_parse = to_parse[temp:]
 
+        # Amount of seats taken (WAITLIST Full).
+        tracker[stamp] = int(to_parse[(to_parse.find('(')+1):].partition(')')[0])
+
         # Seats Taken.
         section.append(to_parse[:(to_parse.find(')')+1)])
 
@@ -310,6 +316,9 @@ def parse_list_sections(section, item):
                 section.append(name[2].strip().split(' ')[1])
             except IndexError:
                 section.append('Blank')
+
+            # -1 indicates unlimited seats.
+            tracker[stamp] = -1
 
             # Seat information.
             section.extend(('Unlim', 'Unlim'))
@@ -337,6 +346,10 @@ def parse_list_sections(section, item):
             section.append('Blank')
 
         temp = to_parse[num_loc:].strip().split(' ')
+
+        # Amount of seats taken (has seats left over.).
+        tracker[stamp] = int(temp[0])
+
         section.extend((temp[0], temp[1]))
 
     # Just staff and no seat information.
@@ -382,6 +395,7 @@ def parse_list(ls):
     final = []
     midterm = []
     section = []
+    tracker = {}
 
     number_regex = re.compile(r'\d+')
     # days_regex = re.compile(r'[A-Z][^A-Z]*')
@@ -423,7 +437,7 @@ def parse_list(ls):
 
         # Finds Section Info.
         if '....' in item:
-            parse_list_sections(section, item)
+            parse_list_sections(section, tracker, item)
 
         # Finds Final / Midterm Info.
         if ('FI' or 'MI') in item:
@@ -446,7 +460,7 @@ def parse_list(ls):
             else:
                 midterm = temp
 
-    return [header, section, email, midterm, final]
+    return [header, section, email, midterm, final, tracker]
 
 
 def format_list(ls):
@@ -465,13 +479,19 @@ def format_list(ls):
 def write_data(ls):
     '''Writes the data to a file.'''
 
-    with open("dataset3.txt", "w") as open_file:
-        for item in ls:
-            for i in item:
-                open_file.write(str(i))
+    with open("tracking.txt", "w") as open_file2:
+        with open("dataset3.txt", "w") as open_file:
+            for item in ls:
+                for i in item:
+                    if (isinstance(i, dict)):
+                        open_file2.write(str(i))
+                        open_file2.write("\n")
+                        open_file2.write("\n")
+                    else:
+                        open_file.write(str(i))
 
-            open_file.write("\n")
-            open_file.write("\n")
+                open_file.write("\n")
+                open_file.write("\n")
 
 
 def main():
@@ -501,17 +521,16 @@ def main():
 
     # BOTTLE NECK
     post = s.post(SOC_URL, data=POST_DATA, stream=True)
-    soup = BeautifulSoup(post.content, 'lxml')
+    # post = s.post(SOC_URL, data=POST_DATA)
 
     # B
     check2 = time.time()
 
     # Define rough boundaries where the page number should be.
-    begin = int(re.search(r"Page", soup.text).start() + 12)
-    finish = begin + 8
+    begin = int(re.search(r"Page", post.content).start()) + 22
 
     # The total number of pages to parse and the current page starting at 1.
-    number_pages = int(soup.text[begin:finish].partition(')')[0])
+    number_pages = int(post.content[begin:begin + 6].partition(')')[0])
 
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, number_pages))
@@ -519,6 +538,7 @@ def main():
     # C
     check3 = time.time()
 
+    # pages = [x for x in xrange(1, number_pages + 1)]
     pages = [x for x in xrange(1, number_pages + 1)]
     urls = (SOC_URL + str(x) for x in pages)
 
@@ -550,7 +570,7 @@ def main():
     print('\t' + 'E --  ' + str(check5 - start))
     print('\t' + 'F --  ' + str(check6 - start) + '\n')
 
-    print("This is how long the requeests take: " + str(sum(times)))
+    print("This is how long the requests take: " + str(sum(times)))
     print("\tAverage: " + str(float(sum(times)) / max(len(times), 1)))
     print("This is how long the parsing take: " + str(sum(times2)))
     print("\tAverage: " + str(float(sum(times2)) / max(len(times2), 1)))

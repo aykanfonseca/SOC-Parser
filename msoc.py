@@ -90,6 +90,8 @@ def get_data(post):
     # except:
     #     post = s.get(url)
 
+    print post.content
+
     pmiddle = time.time()
     print (pmiddle - pstart)
 
@@ -475,7 +477,8 @@ def main():
     # XXX: C
     check3 = time.time()
 
-    pages = [x for x in xrange(1, numberPages + 1)]
+    # pages = [x for x in xrange(1, numberPages + 1)]
+    pages = [x for x in xrange(1, 1 + 1)]
     urls = [soc_url + str(x) for x in pages]
 
     rs = (grequests.post(u, data=post_data) for u in urls)
