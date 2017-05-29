@@ -4,7 +4,7 @@ Parses the schedule of classes.
 # How to use (Mac)
 There are a couple of python modules you must install first to run this program.
 
-___NOTE: Repeat steps 3-6 with pip3 for python3 setup.____
+___NOTE: Repeat steps 3-6 with pip3 for python3 setup.___
 
 If you already have pip installed, you can proceed to step 3.
 
