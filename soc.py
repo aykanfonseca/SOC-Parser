@@ -1,6 +1,17 @@
 '''Python program to scrape UC San Diego's Schedule of Classes.'''
 
-# Builtins. Note: from__future__ is required to be first.
+"""Some brief information. This program is comptabile with python 2.6+ & 3.0+.
+   You must have all of the required packages installed as listed under 'pip
+   installed packages'. This program also has diagnostic & timing output."""
+
+"""Additionally, there are two cases where the program can exit prematurely.
+   Both make use of sys.exit. The first is if we are missing a case in parsing
+   the section information. The second is if the hashing algorithm which
+   generates a unique key for each class encounters a collision (i.e:
+   duplicate keys). Both of these are required to prevent corruption of db
+   data."""
+
+# Builtins.
 import re
 import itertools
 import time
@@ -432,6 +443,7 @@ def check_collision_key(ls):
     print("  - # of keys: " + str(len(keys)))
     print("  - # of unique keys: " + str(len(set(keys))))
     print("  - Note: We want them to be the same.")
+    print("")
 
     c1 = Counter(keys)
     c2 = Counter(set(keys))
@@ -440,7 +452,7 @@ def check_collision_key(ls):
     differences = list((c1-c2).elements())
 
     if differences:
-        print(differences)
+        print (differences)
 
     return len(keys) == len(set(keys))
 
