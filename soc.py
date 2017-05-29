@@ -1,15 +1,12 @@
 '''Python program to scrape UC San Diego's Schedule of Classes.'''
 
 # Builtins. Note: from__future__ is required to be first.
-from __future__ import print_function
 import re
 import itertools
 import time
 from datetime import datetime
 import sys
 from collections import Counter
-import os.path
-import sqlite3
 
 # Pip install packages.
 import requests
@@ -30,12 +27,13 @@ times2 = []
 start = time.time()
 
 # Create a timestamp for the start of scrape.
-timestamp = datetime.now()
+t = datetime.now()
 
-stamp = int(''.join([str(timestamp.year), str(timestamp.month), str(timestamp.day), str(timestamp.hour), str(timestamp.minute)]))
+# Creates timestamp of year-month-day-hour-minute.
+stamp = int(str(t.year)+str(t.month)+str(t.day)+str(t.hour)+str(t.minute))
 
 # Current year (CY) and next year (NY) but only the last two digits.
-YEAR = timestamp.year
+YEAR = t.year
 CY = repr(YEAR % 100)
 NY = repr(YEAR + 1 % 100)
 
@@ -374,7 +372,7 @@ def parse_list_sections(section, tracker, item):
         section.extend(('Staff', 'Blank', 'Blank', 'Blank', 'Blank'))
 
     # Name and no seat information.
-    elif (num_loc == 0 and ',' in to_parse):
+    elif num_loc == 0 and ',' in to_parse:
         name = to_parse.strip().partition(',')
 
         # First name.
@@ -398,8 +396,8 @@ def parse_list_sections(section, tracker, item):
         # Blanks for both the seat information.
         section.extend(('Blank', 'Blank'))
 
-    # No name but seat information - think discussion sections without teacher name.
-    elif (num_loc == 0 and to_parse):
+    # No name but seat info - think discussion sections without teacher name.
+    elif num_loc == 0 and to_parse:
         try:
             section.extend(('Blank', 'Blank', 'Blank'))
             temp = to_parse.split(' ')
@@ -412,7 +410,6 @@ def parse_list_sections(section, tracker, item):
         except IndexError:
             print("ERROR")
             sys.exit()
-            pass
 
     # No name and no seat information
     else:
@@ -427,37 +424,37 @@ def check_collision_key(ls):
 
     for item in ls:
         for i in item:
-            if (isinstance(i, int)):
+            if isinstance(i, int):
                 keys.append(i)
 
     # This will print the sizes. If collision, they will be different.
-    print(len(keys))
-    print(len(set(keys)))
-    print("\n")
+    print("---Diagonistic Information---")
+    print("  - # of keys: " + str(len(keys)))
+    print("  - # of unique keys: " + str(len(set(keys))))
+    print("  - Note: We want them to be the same.")
 
     c1 = Counter(keys)
     c2 = Counter(set(keys))
 
     # This code will print the keys that collided in a list.
-    diff = c1-c2
+    differences = list((c1-c2).elements())
 
-    differences = list(diff.elements())
-
-    if(differences):
+    if differences:
         print(differences)
 
-    return (len(keys) == len(set(keys)))
+    return len(keys) == len(set(keys))
 
 
 def generate_key(header, section, final):
-    '''Generates a unique ID to use. If there is a 1st discussion id, use it, else default to lecture id.'''
+    '''Gives a unique ID to use. If a disc. id, use it, else use lecture id.'''
+
+    tempKey = ''.join(header[:2]) + ''.join(section[2:5]) + section[9]
+    tempKey += ''.join(section[12:15])
 
     try:
-        key = hash(header[0] + header[1] + section[2] + section[3] + section[4] + section[9] + section[12] + section[13] + section[14] + section[17])
+        return hash(tempKey + section[17])
     except IndexError:
-        key = hash(header[0] + header[1] + section[2] + section[3] + section[4] + section[9] + section[12] + section[13] + section[14] + section[0])
-
-    return key
+        return hash(tempKey + section[0])
 
 
 def parse_list(ls):
@@ -539,7 +536,8 @@ def parse_list(ls):
     key_tracker = dict()
     key_tracker = {key: [tracker]}
 
-    # Important: If you have a list of collision keys, put one in here to determine the problematic classes.
+    """Important: If you have a list of collision keys,
+       put one in here to determine the problematic classes."""
     # if (key == 6909990177919859949):
     #     print(header, section, tracker)
 
@@ -562,37 +560,21 @@ def format_list(ls):
 def write_data(ls):
     '''Writes the data to a file.'''
 
-    # if(os.path.isfile("tracking.txt")):
-    #     with open("tracking.txt", "a") as set_file:
-    #         for item in ls:
-    #             for i in item:
-    #                 if (isinstance(i, dict)):
-    #                     set_file.write(str(i))
-    #                     set_file.write("\n")
-    #                     set_file.write("\n")
-    #
-    #     collate_data()
-
-    # else:
     with open("tracking.txt", "w") as open_file2:
         with open("dataset3.txt", "w") as open_file:
             for item in ls:
                 for i in item:
-                    if (isinstance(i, dict)):
+                    if isinstance(i, dict):
                         open_file2.write(str(i))
                         open_file2.write("\n")
                         open_file2.write("\n")
-                    elif (isinstance(i, int)):
+                    elif isinstance(i, int):
                         pass
                     else:
                         open_file.write(str(i))
 
                 open_file.write("\n")
                 open_file.write("\n")
-
-
-def uploadData(ls):
-    """Handles the firebase uploads."""
 
 
 def main():
@@ -644,13 +626,6 @@ def main():
     # Gets the data using urls.
     results = (get_data(x, y) for (x, y) in zip(urls, pages))
 
-    with open("2.7.txt", "w") as open_file:
-        for item in results:
-            for i in item:
-                open_file.write(str(i))
-                open_file.write("\n")
-                open_file.write("\n")
-
     # D
     check4 = time.time()
 
@@ -667,7 +642,8 @@ def main():
     check6 = time.time()
 
     # Does the printing of the timing statements.
-    print('This is the break down of code timing:\n')
+    print("\n")
+    print('---This is the break down of code timing:---')
     print('\t' + '0 --  ' + str(check0 - start))
     print('\t' + 'A --  ' + str(check1 - start))
     print('\t' + 'B --  ' + str(check2 - start))
@@ -676,10 +652,12 @@ def main():
     print('\t' + 'E --  ' + str(check5 - start))
     print('\t' + 'F --  ' + str(check6 - start) + '\n')
 
-    print("This is how long the requests take: " + str(sum(times)))
+
+    print("---Meta Timing Information---")
+    print("  - This is how long the requests take: " + str(sum(times)))
     print("\tAverage: " + str(float(sum(times)) / max(len(times), 1)))
-    print("This is how long the parsing take: " + str(sum(times2)))
-    print("\tAverage: " + str(float(sum(times2)) / max(len(times2), 1)))
+    print("  - This is how long the parsing take: " + str(sum(times2)))
+    print("\tAverage: " + str(float(sum(times2)) / max(len(times2), 1)) + "\n")
 
     return final
 
@@ -688,38 +666,9 @@ if __name__ == '__main__':
     DONE = main()
 
     # If our unique ID keys aren't for some reason unique, we want to stop.
-    if(check_collision_key(DONE) is False):
+    if check_collision_key(DONE) is False:
         print("ERROR: Hashing algorithm encountered a collision!")
         sys.exit()
-
-    # conn = sqlite3.connect("tracking.db")
-    # c = conn.cursor();
-    #
-    # dbExist = False
-    #
-    # # Try to create db. If fail, means it exists.
-    # try:
-    #     c.execute("""CREATE TABLE tracking (class_id INTEGER)""")
-    # except sqlite3.OperationalError:
-    #     print("tracking.db already exists!")
-    #     dbExist = True
-    #
-    # for item in DONE:
-    #     for i in item:
-    #         if (isinstance(i, dict)):
-    #             key = int(i.keys()[0])
-    #
-    #             if (dbExist):
-    #                 c.execute("SELECT * FROM tracking WHERE class_id = :class_id", {'class_id' : key})
-    #                 print(c.fetchall())
-    #             else:
-    #                 c.execute("INSERT into tracking VALUES (:class_id)", {'class_id' : key})
-    #
-    # # Store changes.
-    # conn.commit()
-    #
-    # # Close connection to db.
-    # conn.close()
 
     # Ends the timer.
     END = time.time()
