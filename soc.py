@@ -6,11 +6,19 @@ import re
 import itertools
 import time
 from datetime import datetime
+import sys
+from collections import Counter
+import os.path
+import sqlite3
 
 # Pip install packages.
 import requests
 from bs4 import BeautifulSoup
 from cachecontrol import CacheControl
+
+# DB id:
+UID = "Ah1V2SSqlWct3INN4rxdRDXIJ4G2"
+Email = "aykanfonseca5@gmail.com"
 
 # Global Variables.
 s = requests.Session()
@@ -21,10 +29,10 @@ times2 = []
 # Starts the timer.
 start = time.time()
 
-# Create a timestamp for the start of scrape to serve as hash into seats for the particular scrape.
+# Create a timestamp for the start of scrape.
 timestamp = datetime.now()
 
-stamp = int(''.join([str(timestamp.year), str(timestamp.month), str(timestamp.day), str(timestamp.hour)]))
+stamp = int(''.join([str(timestamp.year), str(timestamp.month), str(timestamp.day), str(timestamp.hour), str(timestamp.minute)]))
 
 # Current year (CY) and next year (NY) but only the last two digits.
 YEAR = timestamp.year
@@ -90,7 +98,8 @@ def get_subjects():
 
     # Gets all the subject codes for post request.
     subjects = dict()
-    subjects['selectedSubjects'] = [str(i.text) for i in soup if len(i.text) <= 4]
+    # Doesn't matter if i.text is unicode. Still works fine.
+    subjects['selectedSubjects'] = [i.text for i in soup if len(i.text) <= 4]
 
     return subjects
 
@@ -99,8 +108,8 @@ def update_term():
     '''Updates post request using current quarter by calling get_quarter.'''
 
     quarter = get_quarters(SOC_URL, current='yes')
-    # term = {'selectedTerm': quarter}
-    term = {'selectedTerm': "SA17"}
+    term = {'selectedTerm': quarter}
+    # term = {'selectedTerm': "SA17"}
     # term = {'selectedTerm': "SP17"}
     # term = {'selectedTerm': "WI17"}
     POST_DATA.update(term)
@@ -111,7 +120,7 @@ def update_subjects():
     '''Updates the post request and subjects selected by parsing URL2.'''
 
     # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects' : 'CSE'})
+    POST_DATA.update({'selectedSubjects': 'CSE'})
     # POST_DATA.update({'selectedSubjects' : 'BENG'})
 
 
@@ -144,7 +153,7 @@ def get_data(url, page):
     # Used to switch departments.
     for item in tr_elements:
         try:
-            parsed_text = str(" ".join(item.text.split()).encode('utf-8'))
+            parsed_text = str(" ".join(item.text.split()))
         except UnicodeEncodeError:
             return "error"
 
@@ -164,7 +173,7 @@ def get_data(url, page):
         if 'Units' in parsed_text:
             page_list.append((' NXC'))
             add = parsed_text.partition(' Prereq')[0]
-            page_list.append((current_dept + " " + add))
+            page_list.append(str(current_dept + " " + add))
 
         # Exam Information, Section information, and Email.
         else:
@@ -174,7 +183,7 @@ def get_data(url, page):
 
                 if item_class == 'nonenrtxt':
                     if ('FI' or 'MI') in parsed_text:
-                        page_list.append((parsed_text))
+                        page_list.append(str(parsed_text))
 
                 elif item_class == 'sectxt':
                     if 'Cancelled' not in parsed_text:
@@ -184,8 +193,8 @@ def get_data(url, page):
                         except TypeError:
                             email = 'No Email'
 
-                        page_list.append(('....' + parsed_text))
-                        page_list.append((email))
+                        page_list.append(str('....' + parsed_text))
+                        page_list.append(str(email))
 
             except KeyError:
                 pass
@@ -220,20 +229,26 @@ def parse_list_sections(section, tracker, item):
     # Readjust the list.
     to_parse = to_parse[2:]
 
-    # Days: so MWF would have separate entries, M, W, F.
+    # Days: so MWF would have separate entries, M, W, F. Max = 5.
     if to_parse[0] != 'TBA':
         temp = days_regex.findall(to_parse[0])
-        # Day 1, Day 2, and Day 3.
-        if len(temp) == 3:
+        # Day 1, Day 2, Day 3, Day 4, and Day 5.
+        if len(temp) == 5:
             section.extend(temp)
-        if len(temp) == 2:
+        if len(temp) == 4:
             section.extend(temp)
             section.append('Blank')
+        if len(temp) == 3:
+            section.extend(temp)
+            section.extend(('Blank', 'Blank'))
+        if len(temp) == 2:
+            section.extend(temp)
+            section.extend(('Blank', 'Blank', 'Blank'))
         if len(temp) == 1:
-            section.extend((temp[0], 'Blank', 'Blank'))
+            section.extend((temp[0], 'Blank', 'Blank', 'Blank', 'Blank'))
         to_parse = to_parse[1:]
     else:
-        section.extend(('Blank', 'Blank', 'Blank'))
+        section.extend(('Blank', 'Blank', 'Blank', 'Blank', 'Blank'))
 
     # The times.
     if to_parse[0] != 'TBA':
@@ -293,7 +308,7 @@ def parse_list_sections(section, tracker, item):
         to_parse = to_parse[temp:]
 
         # Amount of seats taken (WAITLIST Full).
-        tracker[stamp] = int(to_parse[(to_parse.find('(')+1):].partition(')')[0])
+        tracker[stamp] = int(to_parse[to_parse.find('(')+1:to_parse.find(')')])
 
         # Seats Taken.
         section.append(to_parse[:(to_parse.find(')')+1)])
@@ -305,6 +320,8 @@ def parse_list_sections(section, tracker, item):
         if 'Staff ' in to_parse:
             # First, Last, middle names & Seat Information.
             section.extend(('Staff', 'Blank', 'Blank', 'Unlim', 'Unlim'))
+
+            tracker[stamp] = -1
         else:
             name = to_parse[:to_parse.find('Unlim')-1].partition(',')
 
@@ -357,7 +374,7 @@ def parse_list_sections(section, tracker, item):
         section.extend(('Staff', 'Blank', 'Blank', 'Blank', 'Blank'))
 
     # Name and no seat information.
-    elif num_loc == 0:
+    elif (num_loc == 0 and ',' in to_parse):
         name = to_parse.strip().partition(',')
 
         # First name.
@@ -381,9 +398,66 @@ def parse_list_sections(section, tracker, item):
         # Blanks for both the seat information.
         section.extend(('Blank', 'Blank'))
 
+    # No name but seat information - think discussion sections without teacher name.
+    elif (num_loc == 0 and to_parse):
+        try:
+            section.extend(('Blank', 'Blank', 'Blank'))
+            temp = to_parse.split(' ')
+
+            tracker[stamp] = int(temp[0])
+
+            section.append(int(temp[0]))
+            section.append(int(temp[1]))
+
+        except IndexError:
+            print("ERROR")
+            sys.exit()
+            pass
+
     # No name and no seat information
     else:
         section.extend(('Blank', 'Blank', 'Blank', 'Blank', 'Blank'))
+        # TODO: Add tracker information.
+
+
+def check_collision_key(ls):
+    '''Compares all keys and makes sure they are unique.'''
+
+    keys = []
+
+    for item in ls:
+        for i in item:
+            if (isinstance(i, int)):
+                keys.append(i)
+
+    # This will print the sizes. If collision, they will be different.
+    print(len(keys))
+    print(len(set(keys)))
+    print("\n")
+
+    c1 = Counter(keys)
+    c2 = Counter(set(keys))
+
+    # This code will print the keys that collided in a list.
+    diff = c1-c2
+
+    differences = list(diff.elements())
+
+    if(differences):
+        print(differences)
+
+    return (len(keys) == len(set(keys)))
+
+
+def generate_key(header, section, final):
+    '''Generates a unique ID to use. If there is a 1st discussion id, use it, else default to lecture id.'''
+
+    try:
+        key = hash(header[0] + header[1] + section[2] + section[3] + section[4] + section[9] + section[12] + section[13] + section[14] + section[17])
+    except IndexError:
+        key = hash(header[0] + header[1] + section[2] + section[3] + section[4] + section[9] + section[12] + section[13] + section[14] + section[0])
+
+    return key
 
 
 def parse_list(ls):
@@ -460,7 +534,16 @@ def parse_list(ls):
             else:
                 midterm = temp
 
-    return [header, section, email, midterm, final, tracker]
+    key = generate_key(header, section, final)
+
+    key_tracker = dict()
+    key_tracker = {key: [tracker]}
+
+    # Important: If you have a list of collision keys, put one in here to determine the problematic classes.
+    # if (key == 6909990177919859949):
+    #     print(header, section, tracker)
+
+    return [header, section, email, midterm, final, key_tracker, key]
 
 
 def format_list(ls):
@@ -479,6 +562,18 @@ def format_list(ls):
 def write_data(ls):
     '''Writes the data to a file.'''
 
+    # if(os.path.isfile("tracking.txt")):
+    #     with open("tracking.txt", "a") as set_file:
+    #         for item in ls:
+    #             for i in item:
+    #                 if (isinstance(i, dict)):
+    #                     set_file.write(str(i))
+    #                     set_file.write("\n")
+    #                     set_file.write("\n")
+    #
+    #     collate_data()
+
+    # else:
     with open("tracking.txt", "w") as open_file2:
         with open("dataset3.txt", "w") as open_file:
             for item in ls:
@@ -487,11 +582,17 @@ def write_data(ls):
                         open_file2.write(str(i))
                         open_file2.write("\n")
                         open_file2.write("\n")
+                    elif (isinstance(i, int)):
+                        pass
                     else:
                         open_file.write(str(i))
 
                 open_file.write("\n")
                 open_file.write("\n")
+
+
+def uploadData(ls):
+    """Handles the firebase uploads."""
 
 
 def main():
@@ -521,16 +622,15 @@ def main():
 
     # BOTTLE NECK
     post = s.post(SOC_URL, data=POST_DATA, stream=True)
-    # post = s.post(SOC_URL, data=POST_DATA)
 
     # B
     check2 = time.time()
 
     # Define rough boundaries where the page number should be.
-    begin = int(re.search(r"Page", post.content).start()) + 22
+    begin = int(re.search(r"Page", str(post.content)).start()) + 22
 
     # The total number of pages to parse and the current page starting at 1.
-    number_pages = int(post.content[begin:begin + 6].partition(')')[0])
+    number_pages = int(str(post.content)[begin:begin + 6].partition(')')[0])
 
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, number_pages))
@@ -538,12 +638,18 @@ def main():
     # C
     check3 = time.time()
 
-    # pages = [x for x in xrange(1, number_pages + 1)]
-    pages = [x for x in xrange(1, number_pages + 1)]
+    pages = [x for x in range(1, number_pages + 1)]
     urls = (SOC_URL + str(x) for x in pages)
 
     # Gets the data using urls.
-    results = (get_data(x, y) for (x, y) in itertools.izip(urls, pages))
+    results = (get_data(x, y) for (x, y) in zip(urls, pages))
+
+    with open("2.7.txt", "w") as open_file:
+        for item in results:
+            for i in item:
+                open_file.write(str(i))
+                open_file.write("\n")
+                open_file.write("\n")
 
     # D
     check4 = time.time()
@@ -580,6 +686,40 @@ def main():
 
 if __name__ == '__main__':
     DONE = main()
+
+    # If our unique ID keys aren't for some reason unique, we want to stop.
+    if(check_collision_key(DONE) is False):
+        print("ERROR: Hashing algorithm encountered a collision!")
+        sys.exit()
+
+    # conn = sqlite3.connect("tracking.db")
+    # c = conn.cursor();
+    #
+    # dbExist = False
+    #
+    # # Try to create db. If fail, means it exists.
+    # try:
+    #     c.execute("""CREATE TABLE tracking (class_id INTEGER)""")
+    # except sqlite3.OperationalError:
+    #     print("tracking.db already exists!")
+    #     dbExist = True
+    #
+    # for item in DONE:
+    #     for i in item:
+    #         if (isinstance(i, dict)):
+    #             key = int(i.keys()[0])
+    #
+    #             if (dbExist):
+    #                 c.execute("SELECT * FROM tracking WHERE class_id = :class_id", {'class_id' : key})
+    #                 print(c.fetchall())
+    #             else:
+    #                 c.execute("INSERT into tracking VALUES (:class_id)", {'class_id' : key})
+    #
+    # # Store changes.
+    # conn.commit()
+    #
+    # # Close connection to db.
+    # conn.close()
 
     # Ends the timer.
     END = time.time()
