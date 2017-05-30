@@ -23,10 +23,7 @@ from collections import Counter
 import requests
 from bs4 import BeautifulSoup
 from cachecontrol import CacheControl
-
-# DB id:
-UID = "Ah1V2SSqlWct3INN4rxdRDXIJ4G2"
-Email = "aykanfonseca5@gmail.com"
+from firebase import firebase
 
 # Global Variables.
 s = requests.Session()
@@ -117,8 +114,8 @@ def update_term():
     '''Updates post request using current quarter by calling get_quarter.'''
 
     quarter = get_quarters(SOC_URL, current='yes')
-    term = {'selectedTerm': quarter}
-    # term = {'selectedTerm': "SA17"}
+    # term = {'selectedTerm': quarter}
+    term = {'selectedTerm': "SA17"}
     # term = {'selectedTerm': "SP17"}
     # term = {'selectedTerm': "WI17"}
     POST_DATA.update(term)
@@ -587,6 +584,18 @@ def write_data(ls):
 
                 open_file.write("\n")
                 open_file.write("\n")
+
+
+def write_to_db(ls):
+    # TODO: Add entry script.
+
+    db = firebase.FirebaseApplication("https://schedule-of-classes.firebaseio.com", authentication=None)
+
+    path = "/Classes/quarter/SUMMER 2017/"
+
+    for i in ls:
+        key = i[-1]
+        result = db.post(path + str(key), i[:-2])
 
 
 def main():
