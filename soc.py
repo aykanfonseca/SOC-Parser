@@ -159,9 +159,9 @@ def get_data(url, page):
     # Used to switch departments.
     for item in tr_elements:
         try:
-            parsed_text = str(" ".join(item.text.split()))
+            parsed_text = str(" ".join(item.text.split()).encode('utf_8'))
         except UnicodeEncodeError:
-            return "error"
+            return sys.exit()
 
         # Changes department if tr_element looks like a department header.
         try:
@@ -689,6 +689,8 @@ def main():
 
 if __name__ == '__main__':
     DONE = main()
+
+    print(DONE)
 
     # If our unique ID keys aren't for some reason unique, we want to stop.
     if check_collision_key(DONE) is False:
