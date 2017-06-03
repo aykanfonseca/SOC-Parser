@@ -16,8 +16,7 @@ If you already have pip installed, you can proceed to step 3.
 6. Install cachecontrol via pip.
 
 # Improvements to do
-1. Update program efficiency in line with https://wiki.python.org/moin/PythonSpeed/PerformanceTips.
-  1.1 For example, stop repeated function calls in loops.
+1. Update program efficiency in line with https://wiki.python.org/moin/PythonSpeed/PerformanceTips. For example, stop repeated function calls in loops.
 2. Load data into database for retrieval.
 3. Account for multiple teachers, sections, emails, and more.
 4. Fine-tune data to create a class object with metrics for a particular class. I.e: How many discussions are available, enrollment figures, policies on waitlists, and more.
