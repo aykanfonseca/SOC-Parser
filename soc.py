@@ -1,5 +1,19 @@
 '''Python program to scrape UC San Diego's Schedule of Classes.'''
 
+# Builtins.
+from datetime import datetime
+from collections import Counter
+import itertools
+import re
+import sys
+import time
+
+# Pip install packages.
+from bs4 import BeautifulSoup
+from cachecontrol import CacheControl
+from firebase import firebase
+import requests
+
 """Some brief information. This program is comptabile with python 2.6+ & 3.0+.
    You must have all of the required packages installed as listed under 'pip
    installed packages'. This program also has diagnostic & timing output."""
@@ -11,23 +25,9 @@
    duplicate keys). Both of these are required to prevent corruption of db
    data."""
 
-# Builtins.
-import re
-import itertools
-import time
-from datetime import datetime
-import sys
-from collections import Counter
-
-# Pip install packages.
-import requests
-from bs4 import BeautifulSoup
-from cachecontrol import CacheControl
-from firebase import firebase
-
 # Global Variables.
-s = requests.Session()
 number_pages = 0
+s = requests.Session()
 times = []
 times2 = []
 
@@ -78,11 +78,11 @@ def get_quarters(url, current=None):
     '''Gets all the quarters listed in drop down menu.'''
 
     quarters = s.get(url, stream=True)
-    q_soup = BeautifulSoup(quarters.content, 'lxml')
+    q_soup = BeautifulSoup(quarters.content, 'lxml').findAll('option')
 
     # Gets the rest of the quarters for the year.
     quarters = []
-    for option in q_soup.findAll('option'):
+    for option in q_soup:
         # Value will take the form 'FA16' or 'SP15' for example.
         value = option['value']
         if value[2:] in (CY, NY):
@@ -104,6 +104,7 @@ def get_subjects():
 
     # Gets all the subject codes for post request.
     subjects = dict()
+
     # Doesn't matter if i.text is unicode. Still works fine.
     subjects['selectedSubjects'] = [i.text for i in soup if len(i.text) <= 4]
 
@@ -125,8 +126,8 @@ def update_term():
 def update_subjects():
     '''Updates the post request and subjects selected by parsing URL2.'''
 
-    # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': 'CSE'})
+    POST_DATA.update(get_subjects())
+    # POST_DATA.update({'selectedSubjects': 'CSE'})
     # POST_DATA.update({'selectedSubjects' : 'BENG'})
 
 
@@ -589,7 +590,7 @@ def write_data(ls):
 def write_to_db(ls):
     # TODO: Add entry script.
 
-    db = firebase.FirebaseApplication("https://schedule-of-classes.firebaseio.com", authentication=None)
+    db = firebase.FirebaseApplication("https://schedule-of-classes.firebaseio.com")
 
     path = "/Classes/quarter/SUMMER 2017/"
 
@@ -623,7 +624,7 @@ def main():
     s.headers['User-Agent'] = 'Mozilla/5.0'
     s = CacheControl(s)
 
-    # BOTTLE NECK
+    # FIXME: BOTTLE NECK
     post = s.post(SOC_URL, data=POST_DATA, stream=True)
 
     # B
@@ -641,22 +642,27 @@ def main():
     # C
     check3 = time.time()
 
-    pages = [x for x in range(1, number_pages + 1)]
+    pages = list(range(1, number_pages + 1))
     urls = (SOC_URL + str(x) for x in pages)
 
+    # Groups a url with its page number.
+    tied = zip(urls, pages)
+
     # Gets the data using urls.
-    results = (get_data(x, y) for (x, y) in zip(urls, pages))
+    # FIXME: Retool get_data to accept a tuple object and return a list so we avoid function calls. 
+    results = [get_data(x, y) for (x, y) in tied]
 
     # D
     check4 = time.time()
 
     # Format list into proper format
-    results = (format_list(results))
+    results = format_list(results)
 
     # E
     check5 = time.time()
 
     # Parses items in list into usable portions.
+    # FIXME: Remove function call - as they are expensive - and put for loop in parse_list.
     final = [parse_list(item) for item in results]
 
     # F
@@ -672,7 +678,6 @@ def main():
     print('\t' + 'D --  ' + str(check4 - start))
     print('\t' + 'E --  ' + str(check5 - start))
     print('\t' + 'F --  ' + str(check6 - start) + '\n')
-
 
     print("---Meta Timing Information---")
     print("  - This is how long the requests take: " + str(sum(times)))
