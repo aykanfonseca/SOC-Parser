@@ -40,10 +40,9 @@ t = datetime.now()
 # Creates timestamp of year-month-day-hour-minute.
 stamp = int(str(t.year)+str(t.month)+str(t.day)+str(t.hour)+str(t.minute))
 
-# Current year (CY) and next year (NY) but only the last two digits.
+# Current year and next year but only the last two digits.
 YEAR = t.year
-CY = repr(YEAR % 100)
-NY = repr(YEAR + 1 % 100)
+currAndNextYear = (repr(YEAR % 100), repr(YEAR + 1 % 100))
 
 # URL to the entire list of classes.
 SOC_URL = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
@@ -85,12 +84,12 @@ def get_quarters(url, current=None):
     for option in q_soup:
         # Value will take the form 'FA16' or 'SP15' for example.
         value = option['value']
-        if value[2:] in (CY, NY):
-            # Current quarter by optional parameter.
+        if value[2:] in currAndNextYear:
+            # Current quarter by optional parameter. Otherwise, always append.
             if current:
                 return value
-            else:
-                quarters.append(value)
+
+            quarters.append(value)
 
     return quarters
 
@@ -479,7 +478,6 @@ def parse_list(ls):
     tracker = {}
 
     number_regex = re.compile(r'\d+')
-    # days_regex = re.compile(r'[A-Z][^A-Z]*')
 
     for item in ls:
         # Find class information.
@@ -541,6 +539,7 @@ def parse_list(ls):
             else:
                 midterm = temp
 
+    # FIXME: How to reduce function call to generate_key?
     key = generate_key(header, section, final)
 
     key_tracker = dict()
@@ -649,7 +648,7 @@ def main():
     tied = zip(urls, pages)
 
     # Gets the data using urls.
-    # FIXME: Retool get_data to accept a tuple object and return a list so we avoid function calls. 
+    # FIXME: Retool get_data to accept a tuple object and return a list so we avoid function calls.
     results = [get_data(x, y) for (x, y) in tied]
 
     # D
