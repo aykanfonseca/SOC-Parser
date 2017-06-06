@@ -1,5 +1,12 @@
 '''Python program to scrape UC San Diego's Schedule of Classes.'''
 
+'''Created by Aykan Fonseca.'''
+
+"""TODO UPDATES"""
+# 1. Convert parsing algorithms to dictionaries as they are around 25% faster.
+# 2. Retool get_data to make use of dictionaries to offer faster insert / lookup.
+# 3. Retool parsing algorithms (parse_list & parse_list_sections) to split into corresponding portions.
+
 # Builtins.
 from datetime import datetime
 from collections import Counter
@@ -13,6 +20,8 @@ from bs4 import BeautifulSoup
 from cachecontrol import CacheControl
 from firebase import firebase
 import requests
+
+print(sys.version)
 
 """Some brief information. This program is comptabile with python 2.6+ & 3.0+.
    You must have all of the required packages installed as listed under 'pip
@@ -80,7 +89,7 @@ def get_quarters(url, current=None):
     q_soup = BeautifulSoup(quarters.content, 'lxml').findAll('option')
 
     # Gets the rest of the quarters for the year.
-    quarters = []
+    quarters = {}
     for option in q_soup:
         # Value will take the form 'FA16' or 'SP15' for example.
         value = option['value']
@@ -161,7 +170,8 @@ def get_data(url, page):
         try:
             parsed_text = str(" ".join(item.text.split()).encode('utf_8'))
         except UnicodeEncodeError:
-            return sys.exit()
+            pass
+            # return sys.exit()
 
         # Changes department if tr_element looks like a department header.
         try:
@@ -428,30 +438,30 @@ def parse_list_sections(section, tracker, item):
 def check_collision_key(ls):
     '''Compares all keys and makes sure they are unique.'''
 
-    keys = []
+    seen = set()
+    differences = []
 
     for item in ls:
         for i in item:
             if isinstance(i, int):
-                keys.append(i)
+                if i not in seen:
+                    seen.add(i)
+                else:
+                    differences.append(i)
 
     # This will print the sizes. If collision, they will be different.
     print("---Diagonistic Information---")
-    print("  - # of keys: " + str(len(keys)))
-    print("  - # of unique keys: " + str(len(set(keys))))
+    print("  - # of keys: " + str(len(seen) + len(differences)))
+    print("  - # of unique keys: " + str(len(seen)))
     print("  - Note: We want them to be the same.")
     print("")
 
-    c1 = Counter(keys)
-    c2 = Counter(set(keys))
-
     # This code will print the keys that collided in a list.
-    differences = list((c1-c2).elements())
-
     if differences:
-        print (differences)
+        print(differences)
+        return False
 
-    return len(keys) == len(set(keys))
+    return True
 
 
 def generate_key(header, section, final):
@@ -601,6 +611,8 @@ def write_to_db(ls):
 def main():
     '''The main function.'''
 
+    # TODO: Condense Main function to minimal amount of "setup" code
+
     # Global Variables.
     global s
     global number_pages
@@ -649,7 +661,11 @@ def main():
 
     # Gets the data using urls.
     # FIXME: Retool get_data to accept a tuple object and return a list so we avoid function calls.
+    # FIXME 2: Also retool get_data along with other methods to work with dictionaries which offer faster lookup & insert.
     results = [get_data(x, y) for (x, y) in tied]
+
+    # Explicitly close connection.
+    r = requests.post(url=SOC_URL, headers={'Connection':'close'})
 
     # D
     check4 = time.time()
@@ -689,8 +705,6 @@ def main():
 
 if __name__ == '__main__':
     DONE = main()
-
-    print(DONE)
 
     # If our unique ID keys aren't for some reason unique, we want to stop.
     if check_collision_key(DONE) is False:
