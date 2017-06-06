@@ -8,8 +8,6 @@
 # 3. Retool parsing algorithms (parse_list & parse_list_sections) to split into corresponding portions.
 
 # Builtins.
-from datetime import datetime
-from collections import Counter
 import itertools
 import re
 import sys
@@ -43,14 +41,11 @@ times2 = []
 # Starts the timer.
 start = time.time()
 
-# Create a timestamp for the start of scrape.
-t = datetime.now()
-
-# Creates timestamp of year-month-day-hour-minute.
-stamp = int(str(t.year)+str(t.month)+str(t.day)+str(t.hour)+str(t.minute))
+# Create a timestamp for the start of scrape in year-month-day-hour-minute.
+stamp = int(time.strftime("%Y%m%d%H%M"))
 
 # Current year and next year but only the last two digits.
-YEAR = t.year
+YEAR = int(time.strftime("%Y"))
 currAndNextYear = (repr(YEAR % 100), repr(YEAR + 1 % 100))
 
 # URL to the entire list of classes.
@@ -467,6 +462,7 @@ def check_collision_key(ls):
 def generate_key(header, section, final):
     '''Gives a unique ID to use. If a disc. id, use it, else use lecture id.'''
 
+    # TODO: Update Hash key generation.
     tempKey = ''.join(header[:2]) + ''.join(section[2:5]) + section[9]
     tempKey += ''.join(section[12:15])
 
@@ -557,7 +553,7 @@ def parse_list(ls):
 
     """Important: If you have a list of collision keys,
        put one in here to determine the problematic classes."""
-    # if (key == 6909990177919859949):
+    # if (key == -5895194357248003337):
     #     print(header, section, tracker)
 
     return [header, section, email, midterm, final, key_tracker, key]
