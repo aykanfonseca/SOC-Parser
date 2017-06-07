@@ -3,9 +3,11 @@
 '''Created by Aykan Fonseca.'''
 
 """TODO UPDATES"""
-# 1. Convert parsing algorithms to dictionaries as they are around 25% faster.
-# 2. Retool get_data to make use of dictionaries to offer faster insert / lookup.
-# 3. Retool parsing algorithms (parse_list & parse_list_sections) to split into corresponding portions.
+# 1. Dictionaries as they are around 25% faster.
+#       a. Retool get_data to make use of dictionaries to offer faster insert / lookup.
+#       b. Retool parsing algorithms (parse_list & parse_list_sections) to split into corresponding portions.
+# 2. Parse data on schedule of class web page - no need for SUBJECTS_URL.
+#       a. Implement new way to find data.
 
 # Builtins.
 import itertools
@@ -65,15 +67,7 @@ POST_DATA = {
     'schStartTime': '12:00',
     'schStartAmPm': '0',
     'schEndTime': '12:00',
-    'schEndAmPm': '0',
-    'tabNum': 'tabs-sub',
-    'schedOption1Dept': 'true',
-    'schedOption2Dept': 'true',
-    'schDayDept': ['M', 'T', 'W', 'R', 'F', 'S'],
-    'schStartTimeDept': '12:00',
-    'schStartAmPmDept': '0',
-    'schEndTimeDept': '12:00',
-    'schEndAmPmDept': '0'
+    'schEndAmPm': '0'
 }
 
 
@@ -576,7 +570,7 @@ def write_data(ls):
     '''Writes the data to a file.'''
 
     with open("tracking.txt", "w") as open_file2:
-        with open("dataset3.txt", "w") as open_file:
+        with open("dataset2.txt", "w") as open_file:
             for item in ls:
                 for i in item:
                     if isinstance(i, dict):
