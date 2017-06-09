@@ -6,8 +6,6 @@
 # 1. Dictionaries as they are around 25% faster.
 #       a. Retool get_data to make use of dictionaries to offer faster insert / lookup.
 #       b. Retool parsing algorithms (parse_list & parse_list_sections) to split into corresponding portions.
-# 2. Parse data on schedule of class web page - no need for SUBJECTS_URL.
-#       a. Implement new way to find data.
 
 # Builtins.
 import itertools
@@ -115,7 +113,6 @@ def update_term():
     # term = {'selectedTerm': quarter}
     term = {'selectedTerm': "SA17"}
     # term = {'selectedTerm': "SP17"}
-    # term = {'selectedTerm': "WI17"}
     POST_DATA.update(term)
     return quarter
 
@@ -125,90 +122,87 @@ def update_subjects():
 
     POST_DATA.update(get_subjects())
     # POST_DATA.update({'selectedSubjects': 'CSE'})
-    # POST_DATA.update({'selectedSubjects' : 'BENG'})
 
 
-def update_post():
-    '''Calls updateSubjects & update_term to add to post data.'''
-
-    update_subjects()
-    return update_term()
-
-
-def get_data(url, page):
+def get_data(tied):
     '''Parses the data of one page.'''
 
-    pstart = time.time()
+    master = []
 
-    # Occasionally, the first call will fail.
-    try:
-        post = s.get(url, stream=True)
-    except requests.exceptions.HTTPError:
-        post = s.get(url, stream=True)
+    for url, page in tied:
+        pstart = time.time()
 
-    # Parse the response into HTML and look only for tr tags.
-    tr_elements = BeautifulSoup(post.content, 'lxml').findAll('tr')
-
-    # This will contain all the classes for a single page.
-    page_list = []
-
-    pstart2 = time.time()
-
-    # Used to switch departments.
-    for item in tr_elements:
+        # Occasionally, the first call will fail.
         try:
-            parsed_text = str(" ".join(item.text.split()).encode('utf_8'))
-        except UnicodeEncodeError:
-            pass
-            # return sys.exit()
+            post = s.get(url, stream=True)
+        except requests.exceptions.HTTPError:
+            post = s.get(url, stream=True)
 
-        # Changes department if tr_element looks like a department header.
-        try:
-            check = item.td.h2.text
+        # Parse the response into HTML and look only for tr tags.
+        tr_elements = BeautifulSoup(post.content, 'lxml').findAll('tr')
 
-            # We have a 3-4 department code in our tag.
-            if " )" in check:
-                current_dept = str(check.partition("(")[2].partition(" ")[0])
+        # This will contain all the classes for a single page.
+        page_list = []
 
-        # Not on a department, so skip it, and use previous current_dept.
-        except AttributeError:
-            pass
+        pstart2 = time.time()
 
-        # The header of each class: units, department, course number, etc..
-        if 'Units' in parsed_text:
-            page_list.append((' NXC'))
-            add = parsed_text.partition(' Prereq')[0]
-            page_list.append(str(current_dept + " " + add))
-
-        # Exam Information, Section information, and Email.
-        else:
-            # Check if there is an item class.
+        # Used to switch departments.
+        for item in tr_elements:
             try:
-                item_class = str(item['class'][0])
+                parsed_text = str(" ".join(item.text.split()).encode('utf_8'))
+            except UnicodeEncodeError:
+                pass
+                # return sys.exit()
 
-                if item_class == 'nonenrtxt':
-                    if ('FI' or 'MI') in parsed_text:
-                        page_list.append(str(parsed_text))
+            # Changes department if tr_element looks like a department header.
+            try:
+                check = item.td.h2.text
 
-                elif item_class == 'sectxt':
-                    if 'Cancelled' not in parsed_text:
-                        # Check if there is an email.
-                        try:
-                            email = str(item.find('a')['href'])[7:]
-                        except TypeError:
-                            email = 'No Email'
+                # We have a 3-4 department code in our tag.
+                if " )" in check:
+                    current_dept = str(check.partition("(")[2].partition(" ")[0])
 
-                        page_list.append(str('....' + parsed_text))
-                        page_list.append(str(email))
-
-            except KeyError:
+            # Not on a department, so skip it, and use previous current_dept.
+            except AttributeError:
                 pass
 
-    pend = time.time()
-    print ("Completed Page {} of {}".format(page, number_pages))
-    times2.append(pend - pstart2)
-    times.append(pstart2 - pstart)
-    return page_list
+            # The header of each class: units, department, course number, etc..
+            if 'Units' in parsed_text:
+                page_list.append((' NXC'))
+                add = parsed_text.partition(' Prereq')[0]
+                page_list.append(str(current_dept + " " + add))
+
+            # Exam Information, Section information, and Email.
+            else:
+                # Check if there is an item class.
+                try:
+                    item_class = str(item['class'][0])
+
+                    if 'nonenrtxt' in item_class:
+                        if ('FI' or 'MI') in parsed_text:
+                            page_list.append(str(parsed_text))
+
+                    elif 'sectxt' in item_class:
+                        if 'Cancelled' not in parsed_text:
+                            # Check if there is an email.
+                            try:
+                                email = str(item.find('a')['href'])[7:]
+                            except TypeError:
+                                email = 'No Email'
+
+                            page_list.append(str('....' + parsed_text))
+                            page_list.append(str(email))
+
+                except KeyError:
+                    pass
+
+        pend = time.time()
+        print ("Completed Page {} of {}".format(page, number_pages))
+        times2.append(pend - pstart2)
+        times.append(pstart2 - pstart)
+        master.append(page_list)
+
+    return master
 
 
 def parse_list_sections(section, tracker, item):
@@ -570,7 +564,7 @@ def write_data(ls):
     '''Writes the data to a file.'''
 
     with open("tracking.txt", "w") as open_file2:
-        with open("dataset2.txt", "w") as open_file:
+        with open("dataset3.txt", "w") as open_file:
             for item in ls:
                 for i in item:
                     if isinstance(i, dict):
@@ -616,7 +610,8 @@ def main():
     check0 = time.time()
 
     # Update postData and request session for previously parsed classes.
-    quarter = update_post()
+    update_subjects()
+    quarter =  update_term()
 
     # A
     check1 = time.time()
@@ -650,12 +645,8 @@ def main():
     tied = zip(urls, pages)
 
     # Gets the data using urls.
-    # FIXME: Retool get_data to accept a tuple object and return a list so we avoid function calls.
     # FIXME 2: Also retool get_data along with other methods to work with dictionaries which offer faster lookup & insert.
-    results = [get_data(x, y) for (x, y) in tied]
-
-    # Explicitly close connection.
-    r = requests.post(url=SOC_URL, headers={'Connection':'close'})
+    results = get_data(tied)
 
     # D
     check4 = time.time()
