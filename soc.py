@@ -8,6 +8,7 @@
 #       b. Retool parsing algorithms (parse_list & parse_list_sections) to split into corresponding portions.
 
 # Builtins.
+import collections
 import itertools
 import re
 import sys
@@ -21,9 +22,9 @@ import requests
 
 print(sys.version)
 
-"""Some brief information. This program is comptabile with python 2.6+ & 3.0+.
-   You must have all of the required packages installed as listed under 'pip
-   installed packages'. This program also has diagnostic & timing output."""
+"""This program is comptabile with python 2.6+ & 3.0+. You must have all of
+   the required packages installed as listed under 'pip installed packages'.
+   This program also has diagnostic & timing output."""
 
 """Additionally, there are two cases where the program can exit prematurely.
    Both make use of sys.exit. The first is if we are missing a case in parsing
@@ -61,11 +62,7 @@ POST_DATA = {
     'titleType': 'contain',
     'schDay': ['M', 'T', 'W', 'R', 'F', 'S'],
     'schedOption1': 'true',
-    'schedOption2': 'true',
-    'schStartTime': '12:00',
-    'schStartAmPm': '0',
-    'schEndTime': '12:00',
-    'schEndAmPm': '0'
+    'schedOption2': 'true'
 }
 
 
@@ -112,16 +109,15 @@ def update_term():
     quarter = get_quarters(SOC_URL, current='yes')
     # term = {'selectedTerm': quarter}
     term = {'selectedTerm': "SA17"}
-    # term = {'selectedTerm': "SP17"}
     POST_DATA.update(term)
     return quarter
 
 
 def update_subjects():
-    '''Updates the post request and subjects selected by parsing URL2.'''
+    '''Updates the post request and subjects selected.'''
 
-    POST_DATA.update(get_subjects())
-    # POST_DATA.update({'selectedSubjects': 'CSE'})
+    # POST_DATA.update(get_subjects())
+    POST_DATA.update({'selectedSubjects': 'CSE'})
 
 
 def get_data(tied):
@@ -205,7 +201,7 @@ def get_data(tied):
     return master
 
 
-def parse_list_sections(section, tracker, item):
+def parse_list_sections(section, tracker, item, counter):
     '''Parses the section information for parse_list.'''
 
     number_regex = re.compile(r'\d+')
@@ -214,16 +210,19 @@ def parse_list_sections(section, tracker, item):
     num_loc = number_regex.search(item).start()
     to_parse = item.split(' ')
 
+    section_num = "section " + str(counter)
+
     # ID.
     if num_loc == 4:
-        section.append(item[4:10].strip())
+        section[section_num + " ID"] = item[4:10].strip()
         to_parse = to_parse[1:]
     else:
-        section.append('Blank')
+        section[section_num + " ID"] = 'Blank'
         to_parse[0] = to_parse[0][4:]
 
     # Meeting type and Section.
-    section.extend(to_parse[0:2])
+    section[section_num + " meeting type"] = to_parse[0]
+    section[section_num + " number"] = to_parse[1]
 
     # Readjust the list.
     to_parse = to_parse[2:]
@@ -233,28 +232,72 @@ def parse_list_sections(section, tracker, item):
         temp = days_regex.findall(to_parse[0])
         # Day 1, Day 2, Day 3, Day 4, and Day 5.
         if len(temp) == 5:
-            section.extend(temp)
+            section[section_num + " day 1"] = temp[0]
+            section[section_num + " day 2"] = temp[1]
+            section[section_num + " day 3"] = temp[2]
+            section[section_num + " day 4"] = temp[3]
+            section[section_num + " day 5"] = temp[4]
         if len(temp) == 4:
-            section.extend(temp)
-            section.append('Blank')
+            section[section_num + " day 1"] = temp[0]
+            section[section_num + " day 2"] = temp[1]
+            section[section_num + " day 3"] = temp[2]
+            section[section_num + " day 4"] = temp[3]
+            section[section_num + " day 5"] = 'Blank'
         if len(temp) == 3:
-            section.extend(temp)
-            section.extend(('Blank', 'Blank'))
+            section[section_num + " day 1"] = temp[0]
+            section[section_num + " day 2"] = temp[1]
+            section[section_num + " day 3"] = temp[2]
+            section[section_num + " day 4"] = 'Blank'
+            section[section_num + " day 5"] = 'Blank'
         if len(temp) == 2:
-            section.extend(temp)
-            section.extend(('Blank', 'Blank', 'Blank'))
+            section[section_num + " day 1"] = temp[0]
+            section[section_num + " day 2"] = temp[1]
+            section[section_num + " day 3"] = 'Blank'
+            section[section_num + " day 4"] = 'Blank'
+            section[section_num + " day 5"] = 'Blank'
         if len(temp) == 1:
-            section.extend((temp[0], 'Blank', 'Blank', 'Blank', 'Blank'))
+            section[section_num + " day 1"] = temp[0]
+            section[section_num + " day 2"] = 'Blank'
+            section[section_num + " day 3"] = 'Blank'
+            section[section_num + " day 4"] = 'Blank'
+            section[section_num + " day 5"] = 'Blank'
         to_parse = to_parse[1:]
     else:
-        section.extend(('Blank', 'Blank', 'Blank', 'Blank', 'Blank'))
+        section[section_num + " day 1"] = 'Blank'
+        section[section_num + " day 2"] = 'Blank'
+        section[section_num + " day 3"] = 'Blank'
+        section[section_num + " day 4"] = 'Blank'
+        section[section_num + " day 5"] = 'Blank'
 
     # The times.
     if to_parse[0] != 'TBA':
-        section.extend(to_parse[0].partition('-')[::2])
+        timeTuples = to_parse[0].partition('-')[::2]
+
+        section["start time"] = timeTuples[0][:-1]
+        section["end time"] = timeTuples[1][:-1]
+
+        if timeTuples[0][-1] == "a":
+            section["start time am"] = True
+        else:
+            section["start time am"] = False
+
+        if timeTuples[1][-1] == "a":
+            section["end time am"] = True
+        else:
+            section["end time am"] = False
+
         to_parse = to_parse[1:]
+
     else:
-        section.extend(('Blank', 'Blank'))
+        section["start time"] = "TBA"
+        section["end time"] = "TBA"
+        section["start time am"] = True
+        section["end time am"] = True
+
+    print(to_parse)
+    print(section)
+
+    # TODO
 
     # Adjust list because time was given, but not building or room.
     if (len(to_parse) > 1) and (to_parse[0] == to_parse[1] == 'TBA'):
@@ -451,25 +494,29 @@ def generate_key(header, section, final):
     '''Gives a unique ID to use. If a disc. id, use it, else use lecture id.'''
 
     # TODO: Update Hash key generation.
-    tempKey = ''.join(header[:2]) + ''.join(section[2:5]) + section[9]
-    tempKey += ''.join(section[12:15])
+    # tempKey = ''.join(header[:2]) + ''.join(section[2:5]) + section[9]
+    # tempKey += ''.join(section[12:15])
+    #
+    # try:
+    #     return hash(tempKey + section[17])
+    # except IndexError:
+    #     return hash(tempKey + section[0])
 
-    try:
-        return hash(tempKey + section[17])
-    except IndexError:
-        return hash(tempKey + section[0])
+    return hash(frozenset(header.items()) | frozenset(final.items()))
 
 
 def parse_list(ls):
     '''Parses the list elements into their readable values to store.'''
 
     # Components of a class.
-    header = []
+    header = {}
     email = []
-    final = []
-    midterm = []
-    section = []
+    final = {}
+    midterm = {}
+    # section = []
     tracker = {}
+    section = collections.OrderedDict()
+    counter = 0
 
     number_regex = re.compile(r'\d+')
 
@@ -478,28 +525,33 @@ def parse_list(ls):
         if 'Units' in item:
             # Department.
             c_department = item.partition(' ')[0]
-            header.append(c_department)
+            # header.append(c_department)
+            header["department"] = c_department
             num_loc = number_regex.search(item).start()
 
             # Course Number.
             c_number = item[num_loc:].partition(' ')[0]
-
-            header.append(c_number)
+            # header.append(c_number)
+            header["course number"] = c_number
 
             # Temporary variable to make lines shorter and save time.
             temp = item.partition('( ')
 
             # Name.
-            header.append(temp[0][len(c_number) + 1 + num_loc: -1])
+            # header.append(temp[0][len(c_number) + 1 + num_loc: -1])
+            header["course name"] = temp[0][len(c_number) + 1 + num_loc: -1]
 
             # Units.
-            header.append(temp[2].partition(')')[0])
+            # header.append(temp[2].partition(')')[0])
+            header["units"] = temp[2].partition(')')[0]
 
             # Restrictions.
             if num_loc != len(c_department) + 1:
-                header.append(item[len(c_department) + 1: num_loc - 1])
+                # header.append(item[len(c_department) + 1: num_loc - 1])
+                header["restrictions"] = item[len(c_department) + 1: num_loc - 1]
             else:
-                header.append('No Restrictions')
+                # header.append('No Restrictions')
+                header["restrictions"] = "No Restrictions"
 
         # What happens with two emails? Need to modify getData as well.
 
@@ -510,28 +562,54 @@ def parse_list(ls):
 
         # Finds Section Info.
         if '....' in item:
-            parse_list_sections(section, tracker, item)
+            counter += 1
+            parse_list_sections(section, tracker, item, counter)
 
         # Finds Final / Midterm Info.
         if ('FI' or 'MI') in item:
             exam = item.split(' ')
 
             temp = []
+            temp2 = {}
 
+            print(exam)
             temp.extend(exam[1:3])
+            temp2["date"] = exam[1]
+            temp2["day"] = exam[2]
 
             # The start and end times.
             if exam[3] != 'TBA':
                 temp.extend(exam[3].partition('-')[::2])
+                timeTuples = exam[3].partition('-')[::2]
+
+                temp2["start time"] = timeTuples[0][:-1]
+                temp2["end time"] = timeTuples[1][:-1]
+
+                print(timeTuples)
+
+                if timeTuples[0][-1] == "a":
+                    temp2["start time am"] = True
+                else:
+                    temp2["start time am"] = False
+
+                if timeTuples[1][-1] == "a":
+                    temp2["end time am"] = True
+                else:
+                    temp2["end time am"] = False
+
             else:
-                temp.extend(('TBA', 'TBA'))
+                # temp.extend(('TBA', 'TBA'))
+                temp2["start time"] = "TBA"
+                temp2["end time"] = "TBA"
+                temp2["start time am"] = True
+                temp2["end time am"] = True
 
             temp.extend(exam[4:])
 
             if 'FI' in item:
-                final = temp
+                final = temp2
             else:
-                midterm = temp
+                midterm = temp2
 
     # FIXME: How to reduce function call to generate_key?
     key = generate_key(header, section, final)
@@ -581,7 +659,7 @@ def write_data(ls):
 
 
 def write_to_db(ls):
-    # TODO: Add entry script.
+    """ Adds data to firebase."""
 
     db = firebase.FirebaseApplication("https://schedule-of-classes.firebaseio.com")
 
@@ -611,7 +689,7 @@ def main():
 
     # Update postData and request session for previously parsed classes.
     update_subjects()
-    quarter =  update_term()
+    quarter = update_term()
 
     # A
     check1 = time.time()
@@ -695,8 +773,10 @@ if __name__ == '__main__':
     # Ends the timer.
     END = time.time()
 
+    print(DONE)
+
     # Writes the data to a file.
-    write_data(DONE)
+    # write_to_db(DONE)
 
     # Prints how long it took for program to run with checkpoints.
     print('\n' + str(END - start))
