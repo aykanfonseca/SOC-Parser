@@ -1,8 +1,4 @@
-'''Python program to scrape UC San Diego's Schedule of Classes.'''
-
-'''Created by Aykan Fonseca.'''
-
-# TODO: Retool parsing algorithms to split into corresponding portions with Dictionaries.
+'''Python program to scrape UC San Diego's Schedule of Classes. Created by Aykan Fonseca.'''
 
 # Builtins.
 import collections
@@ -19,8 +15,7 @@ import requests
 
 print(sys.version)
 
-# Global Variables.
-number_pages = 0
+# Global Variable.
 s = CacheControl(requests.Session())
 
 # Create a timestamp for the start of scrape in year-month-day-hour-minute.
@@ -37,14 +32,8 @@ SOC_URL = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult
 SUBJECTS_URL = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
 
 # Input data besides classes.
-POST_DATA = {
-    'loggedIn': 'false',
-    'instructorType': 'begin',
-    'titleType': 'contain',
-    'schDay': ['M', 'T', 'W', 'R', 'F', 'S'],
-    'schedOption1': 'true',
-    'schedOption2': 'true'
-}
+POST_DATA = {'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'contain',
+'schDay': ['M', 'T', 'W', 'R', 'F', 'S'], 'schedOption1': 'true', 'schedOption2': 'true'}
 
 
 def get_quarters(url, current = None):
@@ -72,19 +61,14 @@ def get_subjects():
     subject_post = requests.post(SUBJECTS_URL)
     soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
-    # Gets all the subject codes for post request.
-    subjects = {}
-    subjects['selectedSubjects'] = [i.text for i in soup if len(i.text) <= 4]
-
-    return subjects
+    return {'selectedSubjects' : [i.text for i in soup if len(i.text) <= 4]}
 
 
 def update_data():
     '''Updates post request with quarter and subjects selected.'''
 
     quarter = get_quarters(SOC_URL, current='yes')
-    # term = {'selectedTerm': quarter}
-    term = {'selectedTerm': "SA17"}
+    term = {'selectedTerm': quarter}
     POST_DATA.update(term)
 
     # POST_DATA.update(get_subjects())
@@ -582,8 +566,7 @@ def write_to_db(ls):
 def main():
     '''The main function.'''
 
-    # Global Variables.
-    global s
+    # Global Variable.
     global number_pages
 
     # Update postData and request session for previously parsed classes.
