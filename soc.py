@@ -2,10 +2,7 @@
 
 '''Created by Aykan Fonseca.'''
 
-"""TODO UPDATES"""
-# 1. Dictionaries as they are around 25% faster.
-#       a. Retool get_data to make use of dictionaries to offer faster insert / lookup.
-#       b. Retool parsing algorithms (parse_list & parse_list_sections) to split into corresponding portions.
+# TODO: Retool parsing algorithms to split into corresponding portions with Dictionaries.
 
 # Builtins.
 import collections
@@ -24,7 +21,7 @@ print(sys.version)
 
 # Global Variables.
 number_pages = 0
-s = requests.Session()
+s = CacheControl(requests.Session())
 
 # Create a timestamp for the start of scrape in year-month-day-hour-minute.
 stamp = int(time.strftime("%Y%m%d%H%M"))
@@ -186,10 +183,15 @@ def parse_list_sections(section, tracker, item, counter):
     # Readjust the list.
     to_parse = to_parse[2:]
 
-    # Days: so MWF would have separate entries, M, W, F. Max = 5.
+    # Days: so MWF would have separate entries, M, W, F. Max = 5, assumed Blank.
     if to_parse[0] != 'TBA':
         temp = days_regex.findall(to_parse[0])
-        # Day 1, Day 2, Day 3, Day 4, and Day 5.
+        section[section_num + " day 1"] = 'Blank'
+        section[section_num + " day 2"] = 'Blank'
+        section[section_num + " day 3"] = 'Blank'
+        section[section_num + " day 4"] = 'Blank'
+        section[section_num + " day 5"] = 'Blank'
+
         if len(temp) == 5:
             section[section_num + " day 1"] = temp[0]
             section[section_num + " day 2"] = temp[1]
@@ -201,32 +203,18 @@ def parse_list_sections(section, tracker, item, counter):
             section[section_num + " day 2"] = temp[1]
             section[section_num + " day 3"] = temp[2]
             section[section_num + " day 4"] = temp[3]
-            section[section_num + " day 5"] = 'Blank'
         if len(temp) == 3:
             section[section_num + " day 1"] = temp[0]
             section[section_num + " day 2"] = temp[1]
             section[section_num + " day 3"] = temp[2]
-            section[section_num + " day 4"] = 'Blank'
-            section[section_num + " day 5"] = 'Blank'
         if len(temp) == 2:
             section[section_num + " day 1"] = temp[0]
             section[section_num + " day 2"] = temp[1]
-            section[section_num + " day 3"] = 'Blank'
-            section[section_num + " day 4"] = 'Blank'
-            section[section_num + " day 5"] = 'Blank'
         if len(temp) == 1:
             section[section_num + " day 1"] = temp[0]
-            section[section_num + " day 2"] = 'Blank'
-            section[section_num + " day 3"] = 'Blank'
-            section[section_num + " day 4"] = 'Blank'
-            section[section_num + " day 5"] = 'Blank'
         to_parse = to_parse[1:]
     else:
-        section[section_num + " day 1"] = 'Blank'
-        section[section_num + " day 2"] = 'Blank'
-        section[section_num + " day 3"] = 'Blank'
-        section[section_num + " day 4"] = 'Blank'
-        section[section_num + " day 5"] = 'Blank'
+        pass
 
     # The times.
     if to_parse[0] != 'TBA':
@@ -235,15 +223,8 @@ def parse_list_sections(section, tracker, item, counter):
         section[section_num + " start time"] = timeTuples[0][:-1]
         section[section_num + " end time"] = timeTuples[1][:-1]
 
-        if timeTuples[0][-1] == "a":
-            section[section_num + " start time am"] = True
-        else:
-            section[section_num + " start time am"] = False
-
-        if timeTuples[1][-1] == "a":
-            section[section_num + " end time am"] = True
-        else:
-            section[section_num + " end time am"] = False
+        section[section_num + " start time am"] = True if timeTuples[0][-1] == "a" else False
+        section[section_num + " end time am"] = True if timeTuples[1][-1] == "a" else False
 
         to_parse = to_parse[1:]
 
@@ -260,19 +241,12 @@ def parse_list_sections(section, tracker, item, counter):
     # The Building.
     if to_parse[0] != 'TBA':
         section[section_num + " building"] = to_parse[0]
-        # section.append(to_parse[0])
         to_parse = to_parse[1:]
     else:
         section[section_num + " building"] = 'Blank'
-        # section.append('Blank')
 
     # The Room.
-    if to_parse[0] != 'TBA':
-        section[section_num + " room"] = to_parse[0]
-        # section.append(to_parse[0])
-    else:
-        section[section_num + " room"] = 'Blank'
-        # section.append('Blank')
+    section[section_num + " room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
 
     # Readjust the list.
     to_parse = ' '.join(to_parse[1:])
@@ -455,15 +429,7 @@ def check_collision_key(ls):
 def generate_key(header, section, final):
     '''Gives a unique ID to use. If a disc. id, use it, else use lecture id.'''
 
-    # TODO: Update Hash key generation.
-    # tempKey = ''.join(header[:2]) + ''.join(section[2:5]) + section[9]
-    # tempKey += ''.join(section[12:15])
-    #
-    # try:
-    #     return hash(tempKey + section[17])
-    # except IndexError:
-    #     return hash(tempKey + section[0])
-
+    # TODO: Make sure to incorporate sections.
     return hash(frozenset(header.items()) | frozenset(final.items()))
 
 
@@ -540,15 +506,8 @@ def parse_list(results):
                     temp2["start time"] = timeTuples[0][:-1]
                     temp2["end time"] = timeTuples[1][:-1]
 
-                    if timeTuples[0][-1] == "a":
-                        temp2["start time am"] = True
-                    else:
-                        temp2["start time am"] = False
-
-                    if timeTuples[1][-1] == "a":
-                        temp2["end time am"] = True
-                    else:
-                        temp2["end time am"] = False
+                    temp2["start time am"] = True if timeTuples[0][-1] == "a" else False
+                    temp2["end time am"] = True if timeTuples[1][-1] == "a" else False
 
                 else:
                     temp2["start time"] = "TBA"
@@ -623,18 +582,12 @@ def write_to_db(ls):
 def main():
     '''The main function.'''
 
-    # TODO: Condense Main function to minimal amount of "setup" code.
-
     # Global Variables.
     global s
     global number_pages
 
     # Update postData and request session for previously parsed classes.
     quarter = update_data()
-
-    s = requests.Session()
-    s.headers['User-Agent'] = 'Mozilla/5.0'
-    s = CacheControl(s)
 
     post = s.post(SOC_URL, data=POST_DATA, stream = True)
 
