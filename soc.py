@@ -22,25 +22,9 @@ import requests
 
 print(sys.version)
 
-"""This program is comptabile with python 2.6+ & 3.0+. You must have all of
-   the required packages installed as listed under 'pip installed packages'.
-   This program also has diagnostic & timing output."""
-
-"""Additionally, there are two cases where the program can exit prematurely.
-   Both make use of sys.exit. The first is if we are missing a case in parsing
-   the section information. The second is if the hashing algorithm which
-   generates a unique key for each class encounters a collision (i.e:
-   duplicate keys). Both of these are required to prevent corruption of db
-   data."""
-
 # Global Variables.
 number_pages = 0
 s = requests.Session()
-times = []
-times2 = []
-
-# Starts the timer.
-start = time.time()
 
 # Create a timestamp for the start of scrape in year-month-day-hour-minute.
 stamp = int(time.strftime("%Y%m%d%H%M"))
@@ -66,23 +50,20 @@ POST_DATA = {
 }
 
 
-def get_quarters(url, current=None):
+def get_quarters(url, current = None):
     '''Gets all the quarters listed in drop down menu.'''
 
-    quarters = s.get(url, stream=True)
+    quarters = s.get(url, stream = True)
     q_soup = BeautifulSoup(quarters.content, 'lxml').findAll('option')
 
-    # Gets the rest of the quarters for the year.
+    # Gets the rest of the quarters for the year. For example, 'FA16' or 'SP15'.
     quarters = {}
     for option in q_soup:
-        # Value will take the form 'FA16' or 'SP15' for example.
-        value = option['value']
-        if value[2:] in currAndNextYear:
-            # Current quarter by optional parameter. Otherwise, always append.
+        if option['value'][2:] in currAndNextYear:
             if current:
-                return value
+                return option['value']
 
-            quarters.append(value)
+            quarters.append(option['value'])
 
     return quarters
 
@@ -95,29 +76,24 @@ def get_subjects():
     soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
     # Gets all the subject codes for post request.
-    subjects = dict()
-
-    # Doesn't matter if i.text is unicode. Still works fine.
+    subjects = {}
     subjects['selectedSubjects'] = [i.text for i in soup if len(i.text) <= 4]
 
     return subjects
 
 
-def update_term():
-    '''Updates post request using current quarter by calling get_quarter.'''
+def update_data():
+    '''Updates post request with quarter and subjects selected.'''
 
     quarter = get_quarters(SOC_URL, current='yes')
     # term = {'selectedTerm': quarter}
     term = {'selectedTerm': "SA17"}
     POST_DATA.update(term)
-    return quarter
-
-
-def update_subjects():
-    '''Updates the post request and subjects selected.'''
 
     # POST_DATA.update(get_subjects())
     POST_DATA.update({'selectedSubjects': 'CSE'})
+
+    return quarter
 
 
 def get_data(tied):
@@ -126,8 +102,6 @@ def get_data(tied):
     master = []
 
     for url, page in tied:
-        pstart = time.time()
-
         # Occasionally, the first call will fail.
         try:
             post = s.get(url, stream=True)
@@ -140,37 +114,25 @@ def get_data(tied):
         # This will contain all the classes for a single page.
         page_list = []
 
-        pstart2 = time.time()
-
-        # Used to switch departments.
         for item in tr_elements:
-            try:
-                parsed_text = str(" ".join(item.text.split()).encode('utf_8'))
-            except UnicodeEncodeError:
-                pass
-                # return sys.exit()
+            parsed_text = str(" ".join(item.text.split()).encode('utf_8'))
 
             # Changes department if tr_element looks like a department header.
             try:
-                check = item.td.h2.text
+                if " )" in item.td.h2.text:
+                    current_dept = str(item.td.h2.text.partition("(")[2].partition(" ")[0])
 
-                # We have a 3-4 department code in our tag.
-                if " )" in check:
-                    current_dept = str(check.partition("(")[2].partition(" ")[0])
-
-            # Not on a department, so skip it, and use previous current_dept.
+            # Not on a department, so use previous current_dept.
             except AttributeError:
                 pass
 
             # The header of each class: units, department, course number, etc..
             if 'Units' in parsed_text:
                 page_list.append((' NXC'))
-                add = parsed_text.partition(' Prereq')[0]
-                page_list.append(str(current_dept + " " + add))
+                page_list.append(str(current_dept + " " + parsed_text.partition(' Prereq')[0]))
 
             # Exam Information, Section information, and Email.
             else:
-                # Check if there is an item class.
                 try:
                     item_class = str(item['class'][0])
 
@@ -192,10 +154,7 @@ def get_data(tied):
                 except KeyError:
                     pass
 
-        pend = time.time()
         print ("Completed Page {} of {}".format(page, number_pages))
-        times2.append(pend - pstart2)
-        times.append(pstart2 - pstart)
         master.append(page_list)
 
     return master
@@ -273,31 +232,26 @@ def parse_list_sections(section, tracker, item, counter):
     if to_parse[0] != 'TBA':
         timeTuples = to_parse[0].partition('-')[::2]
 
-        section["start time"] = timeTuples[0][:-1]
-        section["end time"] = timeTuples[1][:-1]
+        section[section_num + " start time"] = timeTuples[0][:-1]
+        section[section_num + " end time"] = timeTuples[1][:-1]
 
         if timeTuples[0][-1] == "a":
-            section["start time am"] = True
+            section[section_num + " start time am"] = True
         else:
-            section["start time am"] = False
+            section[section_num + " start time am"] = False
 
         if timeTuples[1][-1] == "a":
-            section["end time am"] = True
+            section[section_num + " end time am"] = True
         else:
-            section["end time am"] = False
+            section[section_num + " end time am"] = False
 
         to_parse = to_parse[1:]
 
     else:
-        section["start time"] = "TBA"
-        section["end time"] = "TBA"
-        section["start time am"] = True
-        section["end time am"] = True
-
-    print(to_parse)
-    print(section)
-
-    # TODO
+        section[section_num + " start time"] = "TBA"
+        section[section_num + " end time"] = "TBA"
+        section[section_num + " start time am"] = True
+        section[section_num + " end time am"] = True
 
     # Adjust list because time was given, but not building or room.
     if (len(to_parse) > 1) and (to_parse[0] == to_parse[1] == 'TBA'):
@@ -305,16 +259,20 @@ def parse_list_sections(section, tracker, item, counter):
 
     # The Building.
     if to_parse[0] != 'TBA':
-        section.append(to_parse[0])
+        section[section_num + " building"] = to_parse[0]
+        # section.append(to_parse[0])
         to_parse = to_parse[1:]
     else:
-        section.append('Blank')
+        section[section_num + " building"] = 'Blank'
+        # section.append('Blank')
 
     # The Room.
     if to_parse[0] != 'TBA':
-        section.append(to_parse[0])
+        section[section_num + " room"] = to_parse[0]
+        # section.append(to_parse[0])
     else:
-        section.append('Blank')
+        section[section_num + " room"] = 'Blank'
+        # section.append('Blank')
 
     # Readjust the list.
     to_parse = ' '.join(to_parse[1:])
@@ -324,6 +282,10 @@ def parse_list_sections(section, tracker, item, counter):
         num_loc = number_regex.search(to_parse).start()
     except AttributeError:
         num_loc = 0
+
+    # TODO
+    print(to_parse)
+    print(section)
 
     # Handles Teacher, Seats Taken, and Seats Offered.
     if 'FULL' in to_parse:
@@ -505,124 +467,112 @@ def generate_key(header, section, final):
     return hash(frozenset(header.items()) | frozenset(final.items()))
 
 
-def parse_list(ls):
+def parse_list(results):
     '''Parses the list elements into their readable values to store.'''
 
-    # Components of a class.
-    header = {}
-    email = []
-    final = {}
-    midterm = {}
-    # section = []
-    tracker = {}
-    section = collections.OrderedDict()
-    counter = 0
+    final = []
 
-    number_regex = re.compile(r'\d+')
+    for ls in results:
+        # Components of a class.
+        header = {}
+        email = []
+        final = {}
+        midterm = {}
+        tracker = {}
+        section = collections.OrderedDict()
+        counter = 0
 
-    for item in ls:
-        # Find class information.
-        if 'Units' in item:
-            # Department.
-            c_department = item.partition(' ')[0]
-            # header.append(c_department)
-            header["department"] = c_department
-            num_loc = number_regex.search(item).start()
+        number_regex = re.compile(r'\d+')
 
-            # Course Number.
-            c_number = item[num_loc:].partition(' ')[0]
-            # header.append(c_number)
-            header["course number"] = c_number
+        for item in ls:
+            # Find class information.
+            if 'Units' in item:
+                # Department.
+                c_department = item.partition(' ')[0]
+                header["department"] = c_department
+                num_loc = number_regex.search(item).start()
 
-            # Temporary variable to make lines shorter and save time.
-            temp = item.partition('( ')
+                # Course Number.
+                c_number = item[num_loc:].partition(' ')[0]
+                header["course number"] = c_number
 
-            # Name.
-            # header.append(temp[0][len(c_number) + 1 + num_loc: -1])
-            header["course name"] = temp[0][len(c_number) + 1 + num_loc: -1]
+                # Temporary variable to make lines shorter and save time.
+                temp = item.partition('( ')
 
-            # Units.
-            # header.append(temp[2].partition(')')[0])
-            header["units"] = temp[2].partition(')')[0]
+                # Name.
+                header["course name"] = temp[0][len(c_number) + 1 + num_loc: -1]
 
-            # Restrictions.
-            if num_loc != len(c_department) + 1:
-                # header.append(item[len(c_department) + 1: num_loc - 1])
-                header["restrictions"] = item[len(c_department) + 1: num_loc - 1]
-            else:
-                # header.append('No Restrictions')
-                header["restrictions"] = "No Restrictions"
+                # Units.
+                header["units"] = temp[2].partition(')')[0]
 
-        # What happens with two emails? Need to modify getData as well.
+                # Restrictions.
+                if num_loc != len(c_department) + 1:
+                    header["restrictions"] = item[len(c_department) + 1: num_loc - 1]
+                else:
+                    header["restrictions"] = "No Restrictions"
 
-        # Find Email Info.
-        if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in email):
-            if (not email) or ('No Email' not in item):
-                email.append(item.strip())
+            # What happens with two emails? Need to modify getData as well.
 
-        # Finds Section Info.
-        if '....' in item:
-            counter += 1
-            parse_list_sections(section, tracker, item, counter)
+            # Find Email Info.
+            if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in email):
+                if (not email) or ('No Email' not in item):
+                    email.append(item.strip())
 
-        # Finds Final / Midterm Info.
-        if ('FI' or 'MI') in item:
-            exam = item.split(' ')
+            # Finds Section Info.
+            if '....' in item:
+                counter += 1
+                parse_list_sections(section, tracker, item, counter)
 
-            temp = []
-            temp2 = {}
+            # Finds Final / Midterm Info.
+            if ('FI' or 'MI') in item:
+                exam = item.split(' ')
 
-            print(exam)
-            temp.extend(exam[1:3])
-            temp2["date"] = exam[1]
-            temp2["day"] = exam[2]
+                temp2 = {}
 
-            # The start and end times.
-            if exam[3] != 'TBA':
-                temp.extend(exam[3].partition('-')[::2])
-                timeTuples = exam[3].partition('-')[::2]
+                temp2["date"] = exam[1]
+                temp2["day"] = exam[2]
 
-                temp2["start time"] = timeTuples[0][:-1]
-                temp2["end time"] = timeTuples[1][:-1]
+                # The start and end times.
+                if exam[3] != 'TBA':
+                    temp.extend(exam[3].partition('-')[::2])
+                    timeTuples = exam[3].partition('-')[::2]
 
-                print(timeTuples)
+                    temp2["start time"] = timeTuples[0][:-1]
+                    temp2["end time"] = timeTuples[1][:-1]
 
-                if timeTuples[0][-1] == "a":
+                    if timeTuples[0][-1] == "a":
+                        temp2["start time am"] = True
+                    else:
+                        temp2["start time am"] = False
+
+                    if timeTuples[1][-1] == "a":
+                        temp2["end time am"] = True
+                    else:
+                        temp2["end time am"] = False
+
+                else:
+                    temp2["start time"] = "TBA"
+                    temp2["end time"] = "TBA"
                     temp2["start time am"] = True
-                else:
-                    temp2["start time am"] = False
-
-                if timeTuples[1][-1] == "a":
                     temp2["end time am"] = True
+
+                if 'FI' in item:
+                    final = temp2
                 else:
-                    temp2["end time am"] = False
+                    midterm = temp2
 
-            else:
-                # temp.extend(('TBA', 'TBA'))
-                temp2["start time"] = "TBA"
-                temp2["end time"] = "TBA"
-                temp2["start time am"] = True
-                temp2["end time am"] = True
+        # FIXME: How to reduce function call to generate_key?
+        key = generate_key(header, section, final)
 
-            temp.extend(exam[4:])
+        key_tracker = dict()
+        key_tracker = {key: [tracker]}
 
-            if 'FI' in item:
-                final = temp2
-            else:
-                midterm = temp2
+        """Important: If you have a list of collision keys,
+           put one in here to determine the problematic classes."""
+        # if (key == -5895194357248003337):
+        #     print(header, section, tracker)
 
-    # FIXME: How to reduce function call to generate_key?
-    key = generate_key(header, section, final)
-
-    key_tracker = dict()
-    key_tracker = {key: [tracker]}
-
-    """Important: If you have a list of collision keys,
-       put one in here to determine the problematic classes."""
-    # if (key == -5895194357248003337):
-    #     print(header, section, tracker)
-
-    return [header, section, email, midterm, final, key_tracker, key]
+        final.append([header, section, email, midterm, final, key_tracker, key])
 
 
 def format_list(ls):
@@ -673,36 +623,20 @@ def write_to_db(ls):
 def main():
     '''The main function.'''
 
-    # TODO: Condense Main function to minimal amount of "setup" code
+    # TODO: Condense Main function to minimal amount of "setup" code.
 
     # Global Variables.
     global s
     global number_pages
-    global times
-    global times2
-
-    times = []
-    times2 = []
-
-    # 0
-    check0 = time.time()
 
     # Update postData and request session for previously parsed classes.
-    update_subjects()
-    quarter = update_term()
-
-    # A
-    check1 = time.time()
+    quarter = update_data()
 
     s = requests.Session()
     s.headers['User-Agent'] = 'Mozilla/5.0'
     s = CacheControl(s)
 
-    # FIXME: BOTTLE NECK
-    post = s.post(SOC_URL, data=POST_DATA, stream=True)
-
-    # B
-    check2 = time.time()
+    post = s.post(SOC_URL, data=POST_DATA, stream = True)
 
     # Define rough boundaries where the page number should be.
     begin = int(re.search(r"Page", str(post.content)).start()) + 22
@@ -713,51 +647,19 @@ def main():
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, number_pages))
 
-    # C
-    check3 = time.time()
-
+    # Groups a url with its page number.
     pages = list(range(1, number_pages + 1))
     urls = (SOC_URL + str(x) for x in pages)
-
-    # Groups a url with its page number.
     tied = zip(urls, pages)
 
     # Gets the data using urls.
-    # FIXME 2: Also retool get_data along with other methods to work with dictionaries which offer faster lookup & insert.
     results = get_data(tied)
-
-    # D
-    check4 = time.time()
 
     # Format list into proper format
     results = format_list(results)
 
-    # E
-    check5 = time.time()
-
     # Parses items in list into usable portions.
-    # FIXME: Remove function call - as they are expensive - and put for loop in parse_list.
-    final = [parse_list(item) for item in results]
-
-    # F
-    check6 = time.time()
-
-    # Does the printing of the timing statements.
-    print("\n")
-    print('---This is the break down of code timing:---')
-    print('\t' + '0 --  ' + str(check0 - start))
-    print('\t' + 'A --  ' + str(check1 - start))
-    print('\t' + 'B --  ' + str(check2 - start))
-    print('\t' + 'C --  ' + str(check3 - start))
-    print('\t' + 'D --  ' + str(check4 - start))
-    print('\t' + 'E --  ' + str(check5 - start))
-    print('\t' + 'F --  ' + str(check6 - start) + '\n')
-
-    print("---Meta Timing Information---")
-    print("  - This is how long the requests take: " + str(sum(times)))
-    print("\tAverage: " + str(float(sum(times)) / max(len(times), 1)))
-    print("  - This is how long the parsing take: " + str(sum(times2)))
-    print("\tAverage: " + str(float(sum(times2)) / max(len(times2), 1)) + "\n")
+    final = parse_list(results)
 
     return final
 
@@ -770,13 +672,5 @@ if __name__ == '__main__':
         print("ERROR: Hashing algorithm encountered a collision!")
         sys.exit()
 
-    # Ends the timer.
-    END = time.time()
-
-    print(DONE)
-
     # Writes the data to a file.
     # write_to_db(DONE)
-
-    # Prints how long it took for program to run with checkpoints.
-    print('\n' + str(END - start))
