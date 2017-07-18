@@ -62,7 +62,7 @@ def get_subjects():
     soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
     return {'selectedSubjects' : [i.text for i in soup if len(i.text) <= 4]}
-
+    
 
 def update_data():
     '''Updates post request with quarter and subjects selected.'''
@@ -146,10 +146,9 @@ def parse_list_sections(section, tracker, item, counter):
 
     number_regex = re.compile(r'\d+')
     days_regex = re.compile(r'[A-Z][^A-Z]*')
-
     num_loc = number_regex.search(item).start()
-    to_parse = item.split(' ')
 
+    to_parse = item.split(' ')
     section_num = "section " + str(counter)
 
     # ID.
@@ -176,58 +175,46 @@ def parse_list_sections(section, tracker, item, counter):
         section[section_num + " day 4"] = 'Blank'
         section[section_num + " day 5"] = 'Blank'
 
-        if len(temp) == 5:
+        # Changes whatever is available.
+        try:
             section[section_num + " day 1"] = temp[0]
             section[section_num + " day 2"] = temp[1]
             section[section_num + " day 3"] = temp[2]
             section[section_num + " day 4"] = temp[3]
             section[section_num + " day 5"] = temp[4]
-        if len(temp) == 4:
-            section[section_num + " day 1"] = temp[0]
-            section[section_num + " day 2"] = temp[1]
-            section[section_num + " day 3"] = temp[2]
-            section[section_num + " day 4"] = temp[3]
-        if len(temp) == 3:
-            section[section_num + " day 1"] = temp[0]
-            section[section_num + " day 2"] = temp[1]
-            section[section_num + " day 3"] = temp[2]
-        if len(temp) == 2:
-            section[section_num + " day 1"] = temp[0]
-            section[section_num + " day 2"] = temp[1]
-        if len(temp) == 1:
-            section[section_num + " day 1"] = temp[0]
+        except IndexError:
+            pass
+
         to_parse = to_parse[1:]
     else:
         pass
 
-    # The times.
+    # The times. Assume TBA.
+    section[section_num + " start time"] = "TBA"
+    section[section_num + " end time"] = "TBA"
+    section[section_num + " start time am"] = True
+    section[section_num + " end time am"] = True
+
     if to_parse[0] != 'TBA':
         timeTuples = to_parse[0].partition('-')[::2]
 
         section[section_num + " start time"] = timeTuples[0][:-1]
         section[section_num + " end time"] = timeTuples[1][:-1]
-
-        section[section_num + " start time am"] = True if timeTuples[0][-1] == "a" else False
-        section[section_num + " end time am"] = True if timeTuples[1][-1] == "a" else False
+        section[section_num + " start time am"] = False if timeTuples[0][-1] != "a" else True
+        section[section_num + " end time am"] = False if timeTuples[1][-1] != "a" else True
 
         to_parse = to_parse[1:]
-
-    else:
-        section[section_num + " start time"] = "TBA"
-        section[section_num + " end time"] = "TBA"
-        section[section_num + " start time am"] = True
-        section[section_num + " end time am"] = True
 
     # Adjust list because time was given, but not building or room.
     if (len(to_parse) > 1) and (to_parse[0] == to_parse[1] == 'TBA'):
         to_parse = to_parse[1:]
 
-    # The Building.
+    # The Building. Assume Blank.
+    section[section_num + " building"] = 'Blank'
+
     if to_parse[0] != 'TBA':
         section[section_num + " building"] = to_parse[0]
         to_parse = to_parse[1:]
-    else:
-        section[section_num + " building"] = 'Blank'
 
     # The Room.
     section[section_num + " room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
