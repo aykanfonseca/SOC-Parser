@@ -70,8 +70,8 @@ def update_data():
     term = {'selectedTerm': quarter}
     POST_DATA.update(term)
 
-    POST_DATA.update(get_subjects())
-    # POST_DATA.update({'selectedSubjects': 'CSE'})
+    # POST_DATA.update(get_subjects())
+    POST_DATA.update({'selectedSubjects': 'CSE'})
 
     return quarter
 
@@ -231,6 +231,12 @@ def parse_list_sections(section, tracker, item, counter):
     section[section_num + " seats taken"] = 'Blank'
     section[section_num + " seats available"] = 'Blank'
 
+    # Note:
+    # A. When a class is WAITLIST FULL, the seats taken is the amount over plus the seats available and negated.
+    # B. When a class has a WAITLIST, the seats taken is the amount over plus the seats available.
+    # C. When a class has UNLIMITED seats, the seats taken is max integer.
+    # D. When a class has none of those, the seats taken is the actual positive interger and is less than the seats available.
+
     # Handles Teacher, Seats Taken, and Seats Offered.
     if 'FULL' in to_parse:
         temp = to_parse.find('FULL')
@@ -254,13 +260,11 @@ def parse_list_sections(section, tracker, item, counter):
         # Adjust String.
         to_parse = to_parse[temp:]
 
-        # Amount of seats taken (WAITLIST Full).
-        tracker[stamp] = int(to_parse[to_parse.find('(')+1:to_parse.find(')')])
+        print(-int(to_parse[to_parse.find('(')+1:to_parse.find(')')]))
 
-        # Seats Taken.
-        section[section_num + " seats taken"] = int(to_parse[:(to_parse.find(')')+1)])
-
-        # Seats Available.
+        # Seat Information: Amount of seats taken (WAITLIST Full).
+        tracker[stamp] = -int(to_parse[to_parse.find('(')+1:to_parse.find(')')]) + int(to_parse[(to_parse.find(')')+2):])
+        section[section_num + " seats taken"] = -int(to_parse[to_parse.find('(')+1:to_parse.find(')')]) + int(to_parse[(to_parse.find(')')+2):])
         section[section_num + " seats available"] = int(to_parse[(to_parse.find(')')+2):])
 
     elif 'Unlim' in to_parse:
@@ -280,12 +284,10 @@ def parse_list_sections(section, tracker, item, counter):
             except IndexError:
                 pass
 
-        # -1 indicates unlimited seats.
-        tracker[stamp] = -1
-
-        # Seat information.
-        section[section_num + " seats taken"] = 'Unlim'
-        section[section_num + " seats available"] = 'Unlim'
+        # Seat information. -1 indicates unlimited seats.
+        tracker[stamp] = sys.maxint
+        section[section_num + " seats taken"] = sys.maxint
+        section[section_num + " seats available"] = sys.maxint
 
     # Name and seat information.
     elif num_loc != 0:
@@ -311,7 +313,7 @@ def parse_list_sections(section, tracker, item, counter):
 
         temp = to_parse[num_loc:].strip().split(' ')
 
-        # Amount of seats taken (has seats left over.).
+        # Amount of seats taken (has seats left over.
         tracker[stamp] = int(temp[0])
         section[section_num + " seats taken"] = int(temp[0])
         section[section_num + " seats available"] = int(temp[1])
@@ -433,7 +435,7 @@ def parse_list(results):
                 else:
                     header["restrictions"] = "No Restrictions"
 
-            # What happens with two emails? Need to modify getData as well.
+            # TODO: What happens with two emails? Need to modify getData as well. Change Email to a set().
 
             # Find Email Info.
             if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in email):
@@ -548,19 +550,14 @@ def main():
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, number_pages))
 
-    # Groups a url with its page number.
-    tied = ((SOC_URL + str(x), x) for x in range(1, number_pages + 1))
-
-    # Gets the data using urls.
-    results = get_data(tied)
+    # Gets the data using urls. Input is url, page number pairings.
+    results = get_data(((SOC_URL + str(x), x) for x in range(1, number_pages + 1)))
 
     # Format list into proper format
-    results = format_list(results)
+    semi = format_list(results)
 
     # Parses items in list into usable portions.
-    final = parse_list(results)
-
-    return final
+    return parse_list(semi)
 
 
 if __name__ == '__main__':
