@@ -62,7 +62,7 @@ def get_subjects():
     soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
     return {'selectedSubjects' : [i.text for i in soup if len(i.text) <= 4]}
-    
+
 
 def update_data():
     '''Updates post request with quarter and subjects selected.'''
@@ -548,11 +548,8 @@ def main():
 
     post = s.post(SOC_URL, data = POST_DATA, stream = True)
 
-    # Define rough boundaries where the page number should be.
-    begin = int(re.search(r"Page", str(post.content)).start()) + 22
-
-    # The total number of pages to parse and the current page starting at 1.
-    number_pages = int(str(post.content)[begin:begin + 6].partition(')')[0])
+    # The total number of pages to parse.
+    number_pages = int(re.search(r"of&nbsp;([0-9]*)", str(post.content)).group(1))
 
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, number_pages))
