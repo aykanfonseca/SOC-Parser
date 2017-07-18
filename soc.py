@@ -71,8 +71,8 @@ def update_data():
     term = {'selectedTerm': quarter}
     POST_DATA.update(term)
 
-    # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': 'CSE'})
+    POST_DATA.update(get_subjects())
+    # POST_DATA.update({'selectedSubjects': 'CSE'})
 
     return quarter
 
@@ -228,30 +228,32 @@ def parse_list_sections(section, tracker, item, counter):
     except AttributeError:
         num_loc = 0
 
-    # TODO
-    print(to_parse)
-    print(section)
+    # Assume Blank.
+    section[section_num + " firstname"] = 'Blank'
+    section[section_num + " lastname"] = 'Blank'
+    section[section_num + " middlename"] = 'Blank'
+    section[section_num + " seats taken"] = 'Blank'
+    section[section_num + " seats available"] = 'Blank'
 
     # Handles Teacher, Seats Taken, and Seats Offered.
     if 'FULL' in to_parse:
         temp = to_parse.find('FULL')
 
-        if temp == 0:
-            section.extend(('Blank', 'Blank', 'Blank'))
-        else:
+        if temp != 0:
             if 'Staff' in to_parse:
-                section.extend(('Staff', 'Blank', 'Blank'))
+                section[section_num + " firstname"] = 'Staff'
             else:
                 name = to_parse[:temp - 1].partition(',')
 
                 # First name & last name.
-                section.extend((name[0], name[2][1:].split(' ')[0]))
+                section[section_num + " firstname"] = name[0]
+                section[section_num + " lastname"] = name[2][1:].split(' ')[0]
 
                 # Middle name.
                 try:
-                    section.append(name[2][1:].split(' ')[1])
+                    section[section_num + " middlename"] = name[2][1:].split(' ')[1]
                 except IndexError:
-                    section.append('Blank')
+                    pass
 
         # Adjust String.
         to_parse = to_parse[temp:]
@@ -260,34 +262,34 @@ def parse_list_sections(section, tracker, item, counter):
         tracker[stamp] = int(to_parse[to_parse.find('(')+1:to_parse.find(')')])
 
         # Seats Taken.
-        section.append(to_parse[:(to_parse.find(')')+1)])
+        section[section_num + " seats taken"] = to_parse[:(to_parse.find(')')+1)]
 
         # Seats Available.
-        section.append(to_parse[(to_parse.find(')')+2):])
+        section[section_num + " seats available"] = to_parse[(to_parse.find(')')+2):]
 
     elif 'Unlim' in to_parse:
         if 'Staff ' in to_parse:
-            # First, Last, middle names & Seat Information.
-            section.extend(('Staff', 'Blank', 'Blank', 'Unlim', 'Unlim'))
-
-            tracker[stamp] = -1
+            # First, Last, and middle names.
+            section[section_num + " firstname"] = 'Staff'
         else:
             name = to_parse[:to_parse.find('Unlim')-1].partition(',')
 
             # First name & last name.
-            section.extend((name[0], name[2].strip().split(' ')[0]))
+            section[section_num + " firstname"] = name[0]
+            section[section_num + " lastname"] = name[2].strip().split(' ')[0]
 
             # Middle name.
             try:
-                section.append(name[2].strip().split(' ')[1])
+                section[section_num + " middlename"] = name[2].strip().split(' ')[1]
             except IndexError:
-                section.append('Blank')
+                pass
 
-            # -1 indicates unlimited seats.
-            tracker[stamp] = -1
+        # -1 indicates unlimited seats.
+        tracker[stamp] = -1
 
-            # Seat information.
-            section.extend(('Unlim', 'Unlim'))
+        # Seat information.
+        section[section_num + " seats taken"] = 'Unlim'
+        section[section_num + " seats available"] = 'Unlim'
 
     # Name and seat information.
     elif num_loc != 0:
@@ -295,77 +297,69 @@ def parse_list_sections(section, tracker, item, counter):
 
         # First name.
         if name[0] != '':
-            section.append(name[0])
+            section[section_num + " firstname"] = name[0]
         else:
-            section.append('Blank')
+            pass
 
         # Last name.
         if name[2].strip().split(' ')[0] != '':
-            section.append(name[2].strip().split(' ')[0])
+            section[section_num + " lastname"] = name[2].strip().split(' ')[0]
         else:
-            section.append('Blank')
+            pass
 
         # Middle name.
         try:
-            section.append(name[2].strip().split(' ')[1])
+            section[section_num + " middlename"] = name[2].strip().split(' ')[1]
         except IndexError:
-            section.append('Blank')
+            pass
 
         temp = to_parse[num_loc:].strip().split(' ')
 
         # Amount of seats taken (has seats left over.).
         tracker[stamp] = int(temp[0])
-
-        section.extend((temp[0], temp[1]))
+        section[section_num + " seats taken"] = temp[0]
+        section[section_num + " seats available"] = temp[1]
 
     # Just staff and no seat information.
     elif to_parse.strip() == 'Staff':
-        section.extend(('Staff', 'Blank', 'Blank', 'Blank', 'Blank'))
+        section[section_num + " firstname"] = 'Staff'
 
-    # Name and no seat information.
+    # Name and no seat information. Blanks for both the seat information.
     elif num_loc == 0 and ',' in to_parse:
         name = to_parse.strip().partition(',')
 
         # First name.
         if name[0] != '':
-            section.append(name[0])
+            section[section_num + " firstname"] = name[0]
         else:
-            section.append('Blank')
+            pass
 
         # Last name.
         if name[2].strip().split(' ')[0] != '':
-            section.append(name[2].strip().split(' ')[0])
+            section[section_num + " lastname"] = name[2].strip().split(' ')[0]
         else:
-            section.append('Blank')
+            pass
 
         # Middle name.
         try:
-            section.append(name[2].strip().split(' ')[1])
+            section[section_num + " middlename"] = name[2].strip().split(' ')[1]
         except IndexError:
-            section.append('Blank')
-
-        # Blanks for both the seat information.
-        section.extend(('Blank', 'Blank'))
+            pass
 
     # No name but seat info - think discussion sections without teacher name.
     elif num_loc == 0 and to_parse:
         try:
-            section.extend(('Blank', 'Blank', 'Blank'))
             temp = to_parse.split(' ')
 
             tracker[stamp] = int(temp[0])
-
-            section.append(int(temp[0]))
-            section.append(int(temp[1]))
+            section[section_num + " seats taken"] = int(temp[0])
+            section[section_num + " seats available"] = int(temp[1])
 
         except IndexError:
             print("ERROR")
             sys.exit()
 
-    # No name and no seat information
-    else:
-        section.extend(('Blank', 'Blank', 'Blank', 'Blank', 'Blank'))
-        # TODO: Add tracker information.
+    # TODO: Add tracker information.
 
 
 def check_collision_key(ls):
@@ -400,14 +394,16 @@ def check_collision_key(ls):
 def generate_key(header, section, final):
     '''Gives a unique ID to use. If a disc. id, use it, else use lecture id.'''
 
-    # TODO: Make sure to incorporate sections.
-    return hash(frozenset(header.items()) | frozenset(final.items()))
+    hashed = set(frozenset(header.items()) | frozenset(final.items()))
+    hashed.add(section['section 1 number'])
+
+    return hash(frozenset(hashed))
 
 
 def parse_list(results):
     '''Parses the list elements into their readable values to store.'''
 
-    final = []
+    parsed = []
 
     for ls in results:
         # Components of a class.
@@ -416,7 +412,7 @@ def parse_list(results):
         final = {}
         midterm = {}
         tracker = {}
-        section = collections.OrderedDict()
+        section = {}
         counter = 0
 
         number_regex = re.compile(r'\d+')
@@ -489,7 +485,9 @@ def parse_list(results):
         # if (key == -5895194357248003337):
         #     print(header, section, tracker)
 
-        final.append([header, section, email, midterm, final, key_tracker, key])
+        parsed.append([header, section, email, midterm, final, key_tracker, key])
+
+    return parsed
 
 
 def format_list(ls):
