@@ -57,7 +57,6 @@ def get_quarters(url, current = None):
 def get_subjects():
     '''Gets all the subjects listed in select menu.'''
 
-    # Makes the post request for the Subject Codes.
     subject_post = requests.post(SUBJECTS_URL)
     soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
@@ -67,7 +66,7 @@ def get_subjects():
 def update_data():
     '''Updates post request with quarter and subjects selected.'''
 
-    quarter = get_quarters(SOC_URL, current='yes')
+    quarter = get_quarters(SOC_URL, current = 'yes')
     term = {'selectedTerm': quarter}
     POST_DATA.update(term)
 
@@ -85,9 +84,9 @@ def get_data(tied):
     for url, page in tied:
         # Occasionally, the first call will fail.
         try:
-            post = s.get(url, stream=True)
+            post = s.get(url, stream = True)
         except requests.exceptions.HTTPError:
-            post = s.get(url, stream=True)
+            post = s.get(url, stream = True)
 
         # Parse the response into HTML and look only for tr tags.
         tr_elements = BeautifulSoup(post.content, 'lxml').findAll('tr')
@@ -117,20 +116,17 @@ def get_data(tied):
                 try:
                     item_class = str(item['class'][0])
 
-                    if 'nonenrtxt' in item_class:
-                        if ('FI' or 'MI') in parsed_text:
-                            page_list.append(str(parsed_text))
+                    if 'nonenrtxt' in item_class and ('FI' or 'MI') in parsed_text:
+                        page_list.append(str(parsed_text))
 
-                    elif 'sectxt' in item_class:
-                        if 'Cancelled' not in parsed_text:
-                            # Check if there is an email.
-                            try:
-                                email = str(item.find('a')['href'])[7:]
-                            except TypeError:
-                                email = 'No Email'
+                    elif 'sectxt' in item_class and 'Cancelled' not in parsed_text:
+                        page_list.append(str('....' + parsed_text))
 
-                            page_list.append(str('....' + parsed_text))
-                            page_list.append(str(email))
+                        # Check if there is an email.
+                        try:
+                            page_list.append(str(item.find('a')['href'])[7:])
+                        except TypeError:
+                            page_list.append('No Email')
 
                 except KeyError:
                     pass
@@ -262,10 +258,10 @@ def parse_list_sections(section, tracker, item, counter):
         tracker[stamp] = int(to_parse[to_parse.find('(')+1:to_parse.find(')')])
 
         # Seats Taken.
-        section[section_num + " seats taken"] = to_parse[:(to_parse.find(')')+1)]
+        section[section_num + " seats taken"] = int(to_parse[:(to_parse.find(')')+1)])
 
         # Seats Available.
-        section[section_num + " seats available"] = to_parse[(to_parse.find(')')+2):]
+        section[section_num + " seats available"] = int(to_parse[(to_parse.find(')')+2):])
 
     elif 'Unlim' in to_parse:
         if 'Staff ' in to_parse:
@@ -317,8 +313,8 @@ def parse_list_sections(section, tracker, item, counter):
 
         # Amount of seats taken (has seats left over.).
         tracker[stamp] = int(temp[0])
-        section[section_num + " seats taken"] = temp[0]
-        section[section_num + " seats available"] = temp[1]
+        section[section_num + " seats taken"] = int(temp[0])
+        section[section_num + " seats available"] = int(temp[1])
 
     # Just staff and no seat information.
     elif to_parse.strip() == 'Staff':
@@ -371,10 +367,10 @@ def check_collision_key(ls):
     for item in ls:
         for i in item:
             if isinstance(i, int):
-                if i not in seen:
-                    seen.add(i)
-                else:
+                if i in seen:
                     differences.append(i)
+                else:
+                    seen.add(i)
 
     # This will print the sizes. If collision, they will be different.
     print("---Diagonistic Information---")
@@ -553,9 +549,7 @@ def main():
     print("Fetching data for {} from {} pages\n".format(quarter, number_pages))
 
     # Groups a url with its page number.
-    pages = list(range(1, number_pages + 1))
-    urls = (SOC_URL + str(x) for x in pages)
-    tied = zip(urls, pages)
+    tied = ((SOC_URL + str(x), x) for x in range(1, number_pages + 1))
 
     # Gets the data using urls.
     results = get_data(tied)
