@@ -437,22 +437,15 @@ def parse_list(results):
         for item in ls:
             # Find class information.
             if 'Units' in item:
-                # Department.
                 c_department = item.partition(' ')[0]
-                header["department"] = c_department
                 num_loc = number_regex.search(item).start()
-
-                # Course Number.
                 c_number = item[num_loc:].partition(' ')[0]
-                header["course number"] = c_number
-
-                # Temporary variable to make lines shorter and save time.
                 temp = item.partition('( ')
 
-                # Name.
+                # Department, Course Number, Name, and Units.
+                header["department"] = c_department
+                header["course number"] = c_number
                 header["course name"] = temp[0][len(c_number) + 1 + num_loc: -1]
-
-                # Units.
                 header["units"] = temp[2].partition(')')[0]
 
                 # Restrictions.
@@ -476,42 +469,36 @@ def parse_list(results):
             # Finds Final / Midterm Info.
             if ('FI' or 'MI') in item:
                 exam = item.split(' ')
+                examInfo = {}
 
-                temp2 = {}
+                examInfo["date"] = exam[1]
+                examInfo["day"] = exam[2]
 
-                temp2["date"] = exam[1]
-                temp2["day"] = exam[2]
+                # Assume they are problematic and then change them if not.
+                examInfo["start time"] = "TBA"
+                examInfo["end time"] = "TBA"
+                examInfo["start time am"] = True
+                examInfo["end time am"] = True
 
                 # The start and end times.
                 if exam[3] != 'TBA':
-                    temp.extend(exam[3].partition('-')[::2])
                     timeTuples = exam[3].partition('-')[::2]
 
-                    temp2["start time"] = timeTuples[0][:-1]
-                    temp2["end time"] = timeTuples[1][:-1]
+                    examInfo["start time"] = timeTuples[0][:-1]
+                    examInfo["end time"] = timeTuples[1][:-1]
+                    examInfo["start time am"] = False if timeTuples[0][-1] != "a" else True
+                    examInfo["end time am"] = False if timeTuples[1][-1] != "a" else True
 
-                    temp2["start time am"] = True if timeTuples[0][-1] == "a" else False
-                    temp2["end time am"] = True if timeTuples[1][-1] == "a" else False
-
-                else:
-                    temp2["start time"] = "TBA"
-                    temp2["end time"] = "TBA"
-                    temp2["start time am"] = True
-                    temp2["end time am"] = True
 
                 if 'FI' in item:
-                    final = temp2
+                    final = examInfo
                 else:
-                    midterm = temp2
+                    midterm = examInfo
 
-        # FIXME: How to reduce function call to generate_key?
         key = generate_key(header, section, final)
-
-        key_tracker = dict()
         key_tracker = {key: [tracker]}
 
-        """Important: If you have a list of collision keys,
-           put one in here to determine the problematic classes."""
+        # Important: If you have a list of collision keys, put one here to determine the problematic classes.
         # if (key == -5895194357248003337):
         #     print(header, section, tracker)
 
@@ -572,7 +559,7 @@ def main():
     # Update postData and request session for previously parsed classes.
     quarter = update_data()
 
-    post = s.post(SOC_URL, data=POST_DATA, stream = True)
+    post = s.post(SOC_URL, data = POST_DATA, stream = True)
 
     # Define rough boundaries where the page number should be.
     begin = int(re.search(r"Page", str(post.content)).start()) + 22
