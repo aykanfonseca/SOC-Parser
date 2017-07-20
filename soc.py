@@ -61,7 +61,7 @@ def get_subjects():
     subject_post = requests.post(SUBJECTS_URL)
     soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
-    return {'selectedSubjects' : [i.text for i in soup if len(i.text) <= 4]}
+    return {'selectedSubjects': [i.text for i in soup if len(i.text) <= 4]}
 
 
 def update_data():
@@ -100,14 +100,16 @@ def get_data(tied):
 
             # Changes department if tr_element looks like a department header.
             try:
-                current_dept = str(re.search(r'\((.*?)\)', item.td.h2.text).group(1))
+                current_dept = str(
+                    re.search(r'\((.*?)\)', item.td.h2.text).group(1))
             except AttributeError:
                 pass
 
             # The header of each class: units, department, course number, etc..
             if 'Units' in parsed_text:
                 page_list.append((' NXC'))
-                page_list.append(str(current_dept + " " + parsed_text.partition(' Prereq')[0]))
+                page_list.append(
+                    str(current_dept + " " + parsed_text.partition(' Prereq')[0]))
 
             # Exam Information, Section information, and Email.
             else:
@@ -194,8 +196,10 @@ def parse_list_sections(section, tracker, item, counter):
 
         section[section_num + " start time"] = time_tuples[0][:-1]
         section[section_num + " end time"] = time_tuples[1][:-1]
-        section[section_num + " start time am"] = False if time_tuples[0][-1] != "a" else True
-        section[section_num + " end time am"] = False if time_tuples[1][-1] != "a" else True
+        section[section_num +
+                " start time am"] = False if time_tuples[0][-1] != "a" else True
+        section[section_num +
+                " end time am"] = False if time_tuples[1][-1] != "a" else True
 
         to_parse = to_parse[1:]
 
@@ -250,27 +254,29 @@ def parse_list_sections(section, tracker, item, counter):
 
                 # Middle name.
                 try:
-                    section[section_num + " middlename"] = name[2][1:].split(' ')[1]
+                    section[section_num +
+                            " middlename"] = name[2][1:].split(' ')[1]
                 except IndexError:
                     pass
 
         # Adjust String.
         to_parse = to_parse[temp:]
 
-        taken = int(to_parse[to_parse.find('(')+1:to_parse.find(')')])
-        taken += int(to_parse[(to_parse.find(')')+2):])
+        taken = int(to_parse[to_parse.find('(') + 1:to_parse.find(')')])
+        taken += int(to_parse[(to_parse.find(')') + 2):])
 
         # Seat Information: Amount of seats taken (WAITLIST Full).
         tracker[TIMESTAMP] = taken
         section[section_num + " seats taken"] = taken
-        section[section_num + " seats available"] = int(to_parse[(to_parse.find(')')+2):])
+        section[section_num +
+                " seats available"] = int(to_parse[(to_parse.find(')') + 2):])
 
     elif 'Unlim' in to_parse:
         if 'Staff ' in to_parse:
             # First, Last, and middle names.
             section[section_num + " firstname"] = 'Staff'
         else:
-            name = to_parse[:to_parse.find('Unlim')-1].partition(',')
+            name = to_parse[:to_parse.find('Unlim') - 1].partition(',')
 
             # First name & last name.
             section[section_num + " firstname"] = name[0]
@@ -278,7 +284,8 @@ def parse_list_sections(section, tracker, item, counter):
 
             # Middle name.
             try:
-                section[section_num + " middlename"] = name[2].strip().split(' ')[1]
+                section[section_num +
+                        " middlename"] = name[2].strip().split(' ')[1]
             except IndexError:
                 pass
 
@@ -424,14 +431,16 @@ def parse_list(results):
                 # Department, Course Number, Name, and Units.
                 header["department"] = c_department
                 header["course number"] = c_number
-                header["course name"] = temp[0][len(c_number) + 1 + num_loc: -1]
+                header["course name"] = temp[0][len(
+                    c_number) + 1 + num_loc: -1]
                 header["units"] = temp[2].partition(')')[0]
 
                 # Restrictions.
                 header["restrictions"] = "No Restrictions"
 
                 if num_loc != len(c_department) + 1:
-                    header["restrictions"] = item[len(c_department) + 1: num_loc - 1]
+                    header["restrictions"] = item[len(
+                        c_department) + 1: num_loc - 1]
 
             # TODO: What happens with two emails? Modify getData as well. Change Email to set().
 
@@ -483,7 +492,8 @@ def parse_list(results):
         # if (key == -5895194357248003337):
         #     print(header, section, tracker)
 
-        parsed.append([header, section, email, midterm, final, key_tracker, key])
+        parsed.append([header, section, email, midterm,
+                       final, key_tracker, key])
 
     return parsed
 
@@ -495,7 +505,8 @@ def format_list(lst):
     parsed = (item for sublist in lst for item in sublist)
 
     # Groups list into lists of lists based on a delimiter word.
-    parsed = (list(y) for x, y in itertools.groupby(parsed, lambda z: z == ' NXC') if not x)
+    parsed = (list(y) for x, y in itertools.groupby(
+        parsed, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
     return (x for x in parsed if len(x) > 2 and 'Cancelled' not in x)
@@ -524,7 +535,8 @@ def write_data(lst):
 def write_to_db(lst):
     """ Adds data to firebase."""
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes.firebaseio.com")
+    database = firebase.FirebaseApplication(
+        "https://schedule-of-classes.firebaseio.com")
 
     path = "/Classes/quarter/SUMMER 2017/"
 
@@ -542,16 +554,17 @@ def main():
     # Update postData and request session for previously parsed classes.
     quarter = update_data()
 
-    post = SESSION.post(SOC_URL, data=POST_DATA, stream=True)
+    post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
 
     # The total number of pages to parse.
-    NUMBER_PAGES = int(re.search(r"of&nbsp;([0-9]*)", str(post.content)).group(1))
+    NUMBER_PAGES = int(re.search(r"of&nbsp;([0-9]*)", post).group(1))
 
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, NUMBER_PAGES))
 
     # Gets the data using urls. Input is url, page number pairings.
-    results = get_data(((SOC_URL + str(x), x) for x in range(1, NUMBER_PAGES + 1)))
+    results = get_data(((SOC_URL + str(x), x)
+                        for x in range(1, NUMBER_PAGES + 1)))
 
     # Format list into proper format
     semi = format_list(results)
@@ -568,6 +581,7 @@ def main():
     # write_to_db(DONE)
 
     return finished
+
 
 if __name__ == '__main__':
     main()
