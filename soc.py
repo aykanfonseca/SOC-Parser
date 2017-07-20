@@ -1,7 +1,6 @@
-'''Python program to scrape UC San Diego's Schedule of Classes. Created by Aykan Fonseca.'''
+'''Python program to scrape UC San Diego'SESSION Schedule of Classes. Created by Aykan Fonseca.'''
 
-# Builtins.
-import collections
+# Builtins
 import itertools
 import re
 import sys
@@ -16,14 +15,15 @@ import requests
 print(sys.version)
 
 # Global Variable.
-s = CacheControl(requests.Session())
+SESSION = CacheControl(requests.Session())
+NUMBER_PAGES = 0
 
 # Create a timestamp for the start of scrape in year-month-day-hour-minute.
-stamp = int(time.strftime("%Y%m%d%H%M"))
+TIMESTAMP = int(time.strftime("%Y%m%d%H%M"))
 
 # Current year and next year but only the last two digits.
 YEAR = int(time.strftime("%Y"))
-currAndNextYear = (repr(YEAR % 100), repr(YEAR + 1 % 100))
+VALID_YEARS = (repr(YEAR % 100), repr(YEAR + 1 % 100))
 
 # URL to the entire list of classes.
 SOC_URL = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
@@ -33,19 +33,20 @@ SUBJECTS_URL = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/su
 
 # Input data besides classes.
 POST_DATA = {'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'contain',
-'schDay': ['M', 'T', 'W', 'R', 'F', 'S'], 'schedOption1': 'true', 'schedOption2': 'true'}
+             'schDay': ['M', 'T', 'W', 'R', 'F', 'S'], 'schedOption1': 'true',
+             'schedOption2': 'true'}
 
 
-def get_quarters(url, current = None):
+def get_quarters(url, current=None):
     '''Gets all the quarters listed in drop down menu.'''
 
-    quarters = s.get(url, stream = True)
+    quarters = SESSION.get(url, stream=True)
     q_soup = BeautifulSoup(quarters.content, 'lxml').findAll('option')
 
     # Gets the rest of the quarters for the year. For example, 'FA16' or 'SP15'.
-    quarters = {}
+    quarters = []
     for option in q_soup:
-        if option['value'][2:] in currAndNextYear:
+        if option['value'][2:] in VALID_YEARS:
             if current:
                 return option['value']
 
@@ -66,7 +67,7 @@ def get_subjects():
 def update_data():
     '''Updates post request with quarter and subjects selected.'''
 
-    quarter = get_quarters(SOC_URL, current = 'yes')
+    quarter = get_quarters(SOC_URL, current='yes')
     term = {'selectedTerm': quarter}
     POST_DATA.update(term)
 
@@ -84,9 +85,9 @@ def get_data(tied):
     for url, page in tied:
         # Occasionally, the first call will fail.
         try:
-            post = s.get(url, stream = True)
+            post = SESSION.get(url, stream=True)
         except requests.exceptions.HTTPError:
-            post = s.get(url, stream = True)
+            post = SESSION.get(url, stream=True)
 
         # Parse the response into HTML and look only for tr tags.
         tr_elements = BeautifulSoup(post.content, 'lxml').findAll('tr')
@@ -99,10 +100,7 @@ def get_data(tied):
 
             # Changes department if tr_element looks like a department header.
             try:
-                if " )" in item.td.h2.text:
-                    current_dept = str(item.td.h2.text.partition("(")[2].partition(" ")[0])
-
-            # Not on a department, so use previous current_dept.
+                current_dept = str(re.search(r'\((.*?)\)', item.td.h2.text).group(1))
             except AttributeError:
                 pass
 
@@ -131,7 +129,7 @@ def get_data(tied):
                 except KeyError:
                     pass
 
-        print ("Completed Page {} of {}".format(page, number_pages))
+        print ("Completed Page {} of {}".format(page, NUMBER_PAGES))
         master.append(page_list)
 
     return master
@@ -192,12 +190,12 @@ def parse_list_sections(section, tracker, item, counter):
     section[section_num + " end time am"] = True
 
     if to_parse[0] != 'TBA':
-        timeTuples = to_parse[0].partition('-')[::2]
+        time_tuples = to_parse[0].partition('-')[::2]
 
-        section[section_num + " start time"] = timeTuples[0][:-1]
-        section[section_num + " end time"] = timeTuples[1][:-1]
-        section[section_num + " start time am"] = False if timeTuples[0][-1] != "a" else True
-        section[section_num + " end time am"] = False if timeTuples[1][-1] != "a" else True
+        section[section_num + " start time"] = time_tuples[0][:-1]
+        section[section_num + " end time"] = time_tuples[1][:-1]
+        section[section_num + " start time am"] = False if time_tuples[0][-1] != "a" else True
+        section[section_num + " end time am"] = False if time_tuples[1][-1] != "a" else True
 
         to_parse = to_parse[1:]
 
@@ -231,11 +229,10 @@ def parse_list_sections(section, tracker, item, counter):
     section[section_num + " seats taken"] = 'Blank'
     section[section_num + " seats available"] = 'Blank'
 
-    # Note:
-    # A. When a class is WAITLIST FULL, the seats taken is the amount over plus the seats available and negated.
-    # B. When a class has a WAITLIST, the seats taken is the amount over plus the seats available.
-    # C. When a class has UNLIMITED seats, the seats taken is max integer.
-    # D. When a class has none of those, the seats taken is the actual positive interger and is less than the seats available.
+    # Note for seat enrollments:
+    # A. WAITLIST FULL, the seats taken is the amount over plus the seats available.
+    # B. UNLIMITED seats, the seats taken is max integer.
+    # C. None of those, the seats taken is a positive interger.
 
     # Handles Teacher, Seats Taken, and Seats Offered.
     if 'FULL' in to_parse:
@@ -260,11 +257,12 @@ def parse_list_sections(section, tracker, item, counter):
         # Adjust String.
         to_parse = to_parse[temp:]
 
-        print(-int(to_parse[to_parse.find('(')+1:to_parse.find(')')]))
+        taken = int(to_parse[to_parse.find('(')+1:to_parse.find(')')])
+        taken += int(to_parse[(to_parse.find(')')+2):])
 
         # Seat Information: Amount of seats taken (WAITLIST Full).
-        tracker[stamp] = -int(to_parse[to_parse.find('(')+1:to_parse.find(')')]) + int(to_parse[(to_parse.find(')')+2):])
-        section[section_num + " seats taken"] = -int(to_parse[to_parse.find('(')+1:to_parse.find(')')]) + int(to_parse[(to_parse.find(')')+2):])
+        tracker[TIMESTAMP] = taken
+        section[section_num + " seats taken"] = taken
         section[section_num + " seats available"] = int(to_parse[(to_parse.find(')')+2):])
 
     elif 'Unlim' in to_parse:
@@ -285,7 +283,7 @@ def parse_list_sections(section, tracker, item, counter):
                 pass
 
         # Seat information. -1 indicates unlimited seats.
-        tracker[stamp] = sys.maxint
+        tracker[TIMESTAMP] = sys.maxint
         section[section_num + " seats taken"] = sys.maxint
         section[section_num + " seats available"] = sys.maxint
 
@@ -314,7 +312,7 @@ def parse_list_sections(section, tracker, item, counter):
         temp = to_parse[num_loc:].strip().split(' ')
 
         # Amount of seats taken (has seats left over.
-        tracker[stamp] = int(temp[0])
+        tracker[TIMESTAMP] = int(temp[0])
         section[section_num + " seats taken"] = int(temp[0])
         section[section_num + " seats available"] = int(temp[1])
 
@@ -349,7 +347,7 @@ def parse_list_sections(section, tracker, item, counter):
         try:
             temp = to_parse.split(' ')
 
-            tracker[stamp] = int(temp[0])
+            tracker[TIMESTAMP] = int(temp[0])
             section[section_num + " seats taken"] = int(temp[0])
             section[section_num + " seats available"] = int(temp[1])
 
@@ -360,13 +358,13 @@ def parse_list_sections(section, tracker, item, counter):
     # TODO: Add tracker information.
 
 
-def check_collision_key(ls):
+def check_collision_key(lst):
     '''Compares all keys and makes sure they are unique.'''
 
     seen = set()
     differences = []
 
-    for item in ls:
+    for item in lst:
         for i in item:
             if isinstance(i, int):
                 if i in seen:
@@ -403,7 +401,7 @@ def parse_list(results):
 
     parsed = []
 
-    for ls in results:
+    for lst in results:
         # Components of a class.
         header = {}
         email = []
@@ -415,7 +413,7 @@ def parse_list(results):
 
         number_regex = re.compile(r'\d+')
 
-        for item in ls:
+        for item in lst:
             # Find class information.
             if 'Units' in item:
                 c_department = item.partition(' ')[0]
@@ -430,12 +428,12 @@ def parse_list(results):
                 header["units"] = temp[2].partition(')')[0]
 
                 # Restrictions.
+                header["restrictions"] = "No Restrictions"
+
                 if num_loc != len(c_department) + 1:
                     header["restrictions"] = item[len(c_department) + 1: num_loc - 1]
-                else:
-                    header["restrictions"] = "No Restrictions"
 
-            # TODO: What happens with two emails? Need to modify getData as well. Change Email to a set().
+            # TODO: What happens with two emails? Modify getData as well. Change Email to set().
 
             # Find Email Info.
             if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in email):
@@ -450,36 +448,38 @@ def parse_list(results):
             # Finds Final / Midterm Info.
             if ('FI' or 'MI') in item:
                 exam = item.split(' ')
-                examInfo = {}
+                exam_info = {}
 
-                examInfo["date"] = exam[1]
-                examInfo["day"] = exam[2]
+                exam_info["date"] = exam[1]
+                exam_info["day"] = exam[2]
 
                 # Assume they are problematic and then change them if not.
-                examInfo["start time"] = "TBA"
-                examInfo["end time"] = "TBA"
-                examInfo["start time am"] = True
-                examInfo["end time am"] = True
+                exam_info["start time"] = "TBA"
+                exam_info["end time"] = "TBA"
+                exam_info["start time am"] = True
+                exam_info["end time am"] = True
 
                 # The start and end times.
                 if exam[3] != 'TBA':
-                    timeTuples = exam[3].partition('-')[::2]
+                    time_tuples = exam[3].partition('-')[::2]
 
-                    examInfo["start time"] = timeTuples[0][:-1]
-                    examInfo["end time"] = timeTuples[1][:-1]
-                    examInfo["start time am"] = False if timeTuples[0][-1] != "a" else True
-                    examInfo["end time am"] = False if timeTuples[1][-1] != "a" else True
+                    exam_info["start time"] = time_tuples[0][:-1]
+                    exam_info["end time"] = time_tuples[1][:-1]
 
+                    if time_tuples[0][-1] != "a":
+                        exam_info["start time am"] = False
+                    if time_tuples[1][-1] != "a":
+                        exam_info["end time am"] = False
 
                 if 'FI' in item:
-                    final = examInfo
+                    final = exam_info
                 else:
-                    midterm = examInfo
+                    midterm = exam_info
 
         key = generate_key(header, section, final)
         key_tracker = {key: [tracker]}
 
-        # Important: If you have a list of collision keys, put one here to determine the problematic classes.
+        # If you have a list of collision keys, put one here to determine the problematic classes.
         # if (key == -5895194357248003337):
         #     print(header, section, tracker)
 
@@ -488,11 +488,11 @@ def parse_list(results):
     return parsed
 
 
-def format_list(ls):
+def format_list(lst):
     '''Formats the result list into the one we want.'''
 
     # Flattens list of lists into list.
-    parsed = (item for sublist in ls for item in sublist)
+    parsed = (item for sublist in lst for item in sublist)
 
     # Groups list into lists of lists based on a delimiter word.
     parsed = (list(y) for x, y in itertools.groupby(parsed, lambda z: z == ' NXC') if not x)
@@ -501,12 +501,12 @@ def format_list(ls):
     return (x for x in parsed if len(x) > 2 and 'Cancelled' not in x)
 
 
-def write_data(ls):
+def write_data(lst):
     '''Writes the data to a file.'''
 
     with open("tracking.txt", "w") as open_file2:
         with open("dataset3.txt", "w") as open_file:
-            for item in ls:
+            for item in lst:
                 for i in item:
                     if isinstance(i, dict):
                         open_file2.write(str(i))
@@ -521,52 +521,53 @@ def write_data(ls):
                 open_file.write("\n")
 
 
-def write_to_db(ls):
+def write_to_db(lst):
     """ Adds data to firebase."""
 
-    db = firebase.FirebaseApplication("https://schedule-of-classes.firebaseio.com")
+    database = firebase.FirebaseApplication("https://schedule-of-classes.firebaseio.com")
 
     path = "/Classes/quarter/SUMMER 2017/"
 
-    for i in ls:
+    for i in lst:
         key = i[-1]
-        result = db.post(path + str(key), i[:-2])
+        result = database.post(path + str(key), i[:-2])
 
 
 def main():
     '''The main function.'''
 
     # Global Variable.
-    global number_pages
+    global NUMBER_PAGES
 
     # Update postData and request session for previously parsed classes.
     quarter = update_data()
 
-    post = s.post(SOC_URL, data = POST_DATA, stream = True)
+    post = SESSION.post(SOC_URL, data=POST_DATA, stream=True)
 
     # The total number of pages to parse.
-    number_pages = int(re.search(r"of&nbsp;([0-9]*)", str(post.content)).group(1))
+    NUMBER_PAGES = int(re.search(r"of&nbsp;([0-9]*)", str(post.content)).group(1))
 
     # Prints which quarter we are fetching data from and how many pages.
-    print("Fetching data for {} from {} pages\n".format(quarter, number_pages))
+    print("Fetching data for {} from {} pages\n".format(quarter, NUMBER_PAGES))
 
     # Gets the data using urls. Input is url, page number pairings.
-    results = get_data(((SOC_URL + str(x), x) for x in range(1, number_pages + 1)))
+    results = get_data(((SOC_URL + str(x), x) for x in range(1, NUMBER_PAGES + 1)))
 
     # Format list into proper format
     semi = format_list(results)
 
     # Parses items in list into usable portions.
-    return parse_list(semi)
-
-
-if __name__ == '__main__':
-    DONE = main()
+    finished = parse_list(semi)
 
     # If our unique ID keys aren't for some reason unique, we want to stop.
-    if check_collision_key(DONE) is False:
+    if check_collision_key(finished) is False:
         print("ERROR: Hashing algorithm encountered a collision!")
         sys.exit()
 
     # Writes the data to a file.
     # write_to_db(DONE)
+
+    return finished
+
+if __name__ == '__main__':
+    main()
