@@ -65,8 +65,8 @@ def setup():
     # POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
     POST_DATA.update({'selectedTerm': "SA17"})
 
-    POST_DATA.update(get_subjects())
-    # POST_DATA.update({'selectedSubjects': 'CSE'})
+    # POST_DATA.update(get_subjects())
+    POST_DATA.update({'selectedSubjects': 'BILD'})
 
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
 
@@ -143,12 +143,10 @@ def check_collision_key(lst):
     differences = []
 
     for item in lst:
-        for i in item:
-            if isinstance(i, int):
-                if i in seen:
-                    differences.append(i)
-                else:
-                    seen.add(i)
+        if item["key"] in seen:
+            differences.append(item["key"])
+        else:
+            seen.add(item["key"])
 
     # This will print the sizes. If collision, they will be different.
     print("---Diagonistic Information---")
@@ -481,16 +479,11 @@ def parse_list(results):
                 else:
                     midterm = exam_info
 
-        # key = generate_key(header, section, final)
+        # Uses first 6-digit id as key.
         key = int(re.findall(r"\D(\d{6})\D", str(lst))[0])
-        key_tracker = {key: [tracker]}
+        key_tracker = {key: tracker}
 
-        # If you have a list of collision keys, put one here to determine the problematic classes.
-        # if (key == -5895194357248003337):
-        #     print(header, section, tracker)
-
-        parsed.append([header, section, email, midterm,
-                       final, key_tracker, key])
+        parsed.append({"header": header, "section": section, "midterm": midterm, "final": final, "key_tracker": key_tracker, "key": key})
 
     return parsed
 
@@ -512,17 +505,16 @@ def format_list(lst):
     return (x for x in non_canceled if re.findall(r"\D(\d{6})\D", str(x)))
 
 
-def write_to_db(lst):
+def write_to_db(lst, quarter):
     """ Adds data to firebase."""
 
-    database = firebase.FirebaseApplication(
-        "https://schedule-of-classes.firebaseio.com")
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
-    path = "/Classes/quarter/SUMMER 2017/"
+    path = "/quarter/" + quarter + "/"
 
     for i in lst:
-        key = i[-1]
-        result = database.post(path + str(key), i[:-2])
+        key = i["key"]
+        result = database.post(path + str(key), i)
 
 
 def main():
@@ -549,9 +541,7 @@ def main():
         sys.exit()
 
     # Writes the data to a file.
-    # write_to_db(DONE)
-
-    return finished
+    write_to_db(finished, quarter)
 
 
 if __name__ == '__main__':
