@@ -15,8 +15,8 @@ If you already have pip installed, you can proceed to step 3.
 5. Install bs4 via pip.
 6. Install cachecontrol via pip.
 
+# TIPS
+1. You can delete an entire firebase project and start from scratch.
+
 # Improvements to do
-1. Update program efficiency in line with https://wiki.python.org/moin/PythonSpeed/PerformanceTips. For example, stop repeated function calls in loops.
-2. Load data into database for retrieval.
-3. Account for multiple teachers, sections, emails, and more.
-4. Fine-tune data to create a class object with metrics for a particular class. I.e: How many discussions are available, enrollment figures, policies on waitlists, and more.
+1. Account for multiple teachers, sections, emails, and more.
