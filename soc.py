@@ -37,22 +37,14 @@ POST_DATA = {'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'conta
              'schedOption2': 'true'}
 
 
-def get_quarters(url, current=None):
+def get_quarters(url):
     '''Gets all the quarters listed in drop down menu.'''
 
     quarters = SESSION.get(url, stream=True)
     q_soup = BeautifulSoup(quarters.content, 'lxml').findAll('option')
 
-    # Gets the rest of the quarters for the year. For example, 'FA16' or 'SP15'.
-    quarters = []
-    for option in q_soup:
-        if option['value'][2:] in VALID_YEARS:
-            if current:
-                return option['value']
-
-            quarters.append(option['value'])
-
-    return quarters
+    # Gets the rest of the quarters for the years specified in VALID_YEARS.
+    return [x['value'] for x in q_soup if x['value'][2:] in VALID_YEARS]
 
 
 def get_subjects():
@@ -64,17 +56,17 @@ def get_subjects():
     return {'selectedSubjects': [i.text for i in soup if len(i.text) <= 4]}
 
 
-def update_data():
+def update_post():
     '''Updates post request with quarter and subjects selected.'''
 
-    quarter = get_quarters(SOC_URL, current='yes')
-    term = {'selectedTerm': quarter}
-    POST_DATA.update(term)
+    POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
+    # POST_DATA.update({'selectedTerm': "SA17"})
 
-    # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': 'CSE'})
 
-    return quarter
+    POST_DATA.update(get_subjects())
+    # POST_DATA.update({'selectedSubjects': 'CSE'})
+
+    return POST_DATA['selectedTerm']
 
 
 def get_data(tied):
@@ -117,7 +109,7 @@ def get_data(tied):
                     item_class = str(item['class'][0])
 
                     if 'nonenrtxt' in item_class and ('FI' or 'MI') in parsed_text:
-                        page_list.append(str(parsed_text))
+                        page_list.append(str('****' + parsed_text))
 
                     elif 'sectxt' in item_class and 'Cancelled' not in parsed_text:
                         page_list.append(str('....' + parsed_text))
@@ -135,234 +127,6 @@ def get_data(tied):
         master.append(page_list)
 
     return master
-
-
-def parse_list_sections(section, tracker, item, counter):
-    '''Parses the section information for parse_list.'''
-
-    number_regex = re.compile(r'\d+')
-    days_regex = re.compile(r'[A-Z][^A-Z]*')
-    num_loc = number_regex.search(item).start()
-
-    to_parse = item.split(' ')
-    section_num = "section " + str(counter)
-
-    # ID.
-    if num_loc == 4:
-        section[section_num + " ID"] = item[4:10].strip()
-        to_parse = to_parse[1:]
-    else:
-        section[section_num + " ID"] = 'Blank'
-        to_parse[0] = to_parse[0][4:]
-
-    # Meeting type and Section.
-    section[section_num + " meeting type"] = to_parse[0]
-    section[section_num + " number"] = to_parse[1]
-
-    # Readjust the list.
-    to_parse = to_parse[2:]
-
-    # Days: so MWF would have separate entries, M, W, F. Max = 5, assumed Blank.
-    if to_parse[0] != 'TBA':
-        temp = days_regex.findall(to_parse[0])
-        section[section_num + " day 1"] = 'Blank'
-        section[section_num + " day 2"] = 'Blank'
-        section[section_num + " day 3"] = 'Blank'
-        section[section_num + " day 4"] = 'Blank'
-        section[section_num + " day 5"] = 'Blank'
-
-        # Changes whatever is available.
-        try:
-            section[section_num + " day 1"] = temp[0]
-            section[section_num + " day 2"] = temp[1]
-            section[section_num + " day 3"] = temp[2]
-            section[section_num + " day 4"] = temp[3]
-            section[section_num + " day 5"] = temp[4]
-        except IndexError:
-            pass
-
-        to_parse = to_parse[1:]
-    else:
-        pass
-
-    # The times. Assume TBA.
-    section[section_num + " start time"] = "TBA"
-    section[section_num + " end time"] = "TBA"
-    section[section_num + " start time am"] = True
-    section[section_num + " end time am"] = True
-
-    if to_parse[0] != 'TBA':
-        time_tuples = to_parse[0].partition('-')[::2]
-
-        section[section_num + " start time"] = time_tuples[0][:-1]
-        section[section_num + " end time"] = time_tuples[1][:-1]
-        section[section_num +
-                " start time am"] = False if time_tuples[0][-1] != "a" else True
-        section[section_num +
-                " end time am"] = False if time_tuples[1][-1] != "a" else True
-
-        to_parse = to_parse[1:]
-
-    # Adjust list because time was given, but not building or room.
-    if (len(to_parse) > 1) and (to_parse[0] == to_parse[1] == 'TBA'):
-        to_parse = to_parse[1:]
-
-    # The Building. Assume Blank.
-    section[section_num + " building"] = 'Blank'
-
-    if to_parse[0] != 'TBA':
-        section[section_num + " building"] = to_parse[0]
-        to_parse = to_parse[1:]
-
-    # The Room.
-    section[section_num + " room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
-
-    # Readjust the list.
-    to_parse = ' '.join(to_parse[1:])
-
-    # Find position of first number in string.
-    try:
-        num_loc = number_regex.search(to_parse).start()
-    except AttributeError:
-        num_loc = 0
-
-    # Assume Blank.
-    section[section_num + " firstname"] = 'Blank'
-    section[section_num + " lastname"] = 'Blank'
-    section[section_num + " middlename"] = 'Blank'
-    section[section_num + " seats taken"] = 'Blank'
-    section[section_num + " seats available"] = 'Blank'
-
-    # Note for seat enrollments:
-    # A. WAITLIST FULL, the seats taken is the amount over plus the seats available.
-    # B. UNLIMITED seats, the seats taken is max integer.
-    # C. None of those, the seats taken is a positive interger.
-
-    # Handles Teacher, Seats Taken, and Seats Offered.
-    if 'FULL' in to_parse:
-        temp = to_parse.find('FULL')
-
-        if temp != 0:
-            if 'Staff' in to_parse:
-                section[section_num + " firstname"] = 'Staff'
-            else:
-                name = to_parse[:temp - 1].partition(',')
-
-                # First name & last name.
-                section[section_num + " firstname"] = name[0]
-                section[section_num + " lastname"] = name[2][1:].split(' ')[0]
-
-                # Middle name.
-                try:
-                    section[section_num +
-                            " middlename"] = name[2][1:].split(' ')[1]
-                except IndexError:
-                    pass
-
-        # Adjust String.
-        to_parse = to_parse[temp:]
-
-        taken = int(to_parse[to_parse.find('(') + 1:to_parse.find(')')])
-        taken += int(to_parse[(to_parse.find(')') + 2):])
-
-        # Seat Information: Amount of seats taken (WAITLIST Full).
-        tracker[TIMESTAMP] = taken
-        section[section_num + " seats taken"] = taken
-        section[section_num +
-                " seats available"] = int(to_parse[(to_parse.find(')') + 2):])
-
-    elif 'Unlim' in to_parse:
-        if 'Staff ' in to_parse:
-            # First, Last, and middle names.
-            section[section_num + " firstname"] = 'Staff'
-        else:
-            name = to_parse[:to_parse.find('Unlim') - 1].partition(',')
-
-            # First name & last name.
-            section[section_num + " firstname"] = name[0]
-            section[section_num + " lastname"] = name[2].strip().split(' ')[0]
-
-            # Middle name.
-            try:
-                section[section_num +
-                        " middlename"] = name[2].strip().split(' ')[1]
-            except IndexError:
-                pass
-
-        # Seat information. -1 indicates unlimited seats.
-        tracker[TIMESTAMP] = sys.maxint
-        section[section_num + " seats taken"] = sys.maxint
-        section[section_num + " seats available"] = sys.maxint
-
-    # Name and seat information.
-    elif num_loc != 0:
-        name = to_parse[:num_loc].strip().partition(',')
-
-        # First name.
-        if name[0] != '':
-            section[section_num + " firstname"] = name[0]
-        else:
-            pass
-
-        # Last name.
-        if name[2].strip().split(' ')[0] != '':
-            section[section_num + " lastname"] = name[2].strip().split(' ')[0]
-        else:
-            pass
-
-        # Middle name.
-        try:
-            section[section_num + " middlename"] = name[2].strip().split(' ')[1]
-        except IndexError:
-            pass
-
-        temp = to_parse[num_loc:].strip().split(' ')
-
-        # Amount of seats taken (has seats left over.
-        tracker[TIMESTAMP] = int(temp[0])
-        section[section_num + " seats taken"] = int(temp[0])
-        section[section_num + " seats available"] = int(temp[1])
-
-    # Just staff and no seat information.
-    elif to_parse.strip() == 'Staff':
-        section[section_num + " firstname"] = 'Staff'
-
-    # Name and no seat information. Blanks for both the seat information.
-    elif num_loc == 0 and ',' in to_parse:
-        name = to_parse.strip().partition(',')
-
-        # First name.
-        if name[0] != '':
-            section[section_num + " firstname"] = name[0]
-        else:
-            pass
-
-        # Last name.
-        if name[2].strip().split(' ')[0] != '':
-            section[section_num + " lastname"] = name[2].strip().split(' ')[0]
-        else:
-            pass
-
-        # Middle name.
-        try:
-            section[section_num + " middlename"] = name[2].strip().split(' ')[1]
-        except IndexError:
-            pass
-
-    # No name but seat info - think discussion sections without teacher name.
-    elif num_loc == 0 and to_parse:
-        try:
-            temp = to_parse.split(' ')
-
-            tracker[TIMESTAMP] = int(temp[0])
-            section[section_num + " seats taken"] = int(temp[0])
-            section[section_num + " seats available"] = int(temp[1])
-
-        except IndexError:
-            print("ERROR")
-            sys.exit()
-
-    # TODO: Add tracker information.
 
 
 def check_collision_key(lst):
@@ -392,15 +156,6 @@ def check_collision_key(lst):
         return False
 
     return True
-
-
-def generate_key(header, section, final):
-    '''Gives a unique ID to use. If a disc. id, use it, else use lecture id.'''
-
-    hashed = set(frozenset(header.items()) | frozenset(final.items()))
-    hashed.add(section['section 1 number'])
-
-    return hash(frozenset(hashed))
 
 
 def parse_list(results):
@@ -452,10 +207,235 @@ def parse_list(results):
             # Finds Section Info.
             if '....' in item:
                 counter += 1
-                parse_list_sections(section, tracker, item, counter)
+                '''Parses the section information for parse_list.'''
+
+                number_regex = re.compile(r'\d+')
+                days_regex = re.compile(r'[A-Z][^A-Z]*')
+                num_loc = number_regex.search(item).start()
+
+                to_parse = item.split(' ')
+                section_num = "section " + str(counter)
+
+                # ID.
+                if num_loc == 4:
+                    section[section_num + " ID"] = item[4:10].strip()
+                    to_parse = to_parse[1:]
+                else:
+                    section[section_num + " ID"] = 'Blank'
+                    to_parse[0] = to_parse[0][4:]
+
+                # Meeting type and Section.
+                section[section_num + " meeting type"] = to_parse[0]
+                section[section_num + " number"] = to_parse[1]
+
+                # Readjust the list.
+                to_parse = to_parse[2:]
+
+                # Days: so MWF would have separate entries, M, W, F. Max = 5, assumed Blank.
+                if to_parse[0] != 'TBA':
+                    temp = days_regex.findall(to_parse[0])
+                    section[section_num + " day 1"] = 'Blank'
+                    section[section_num + " day 2"] = 'Blank'
+                    section[section_num + " day 3"] = 'Blank'
+                    section[section_num + " day 4"] = 'Blank'
+                    section[section_num + " day 5"] = 'Blank'
+
+                    # Changes whatever is available.
+                    try:
+                        section[section_num + " day 1"] = temp[0]
+                        section[section_num + " day 2"] = temp[1]
+                        section[section_num + " day 3"] = temp[2]
+                        section[section_num + " day 4"] = temp[3]
+                        section[section_num + " day 5"] = temp[4]
+                    except IndexError:
+                        pass
+
+                    to_parse = to_parse[1:]
+                else:
+                    pass
+
+                # The times. Assume TBA.
+                section[section_num + " start time"] = "TBA"
+                section[section_num + " end time"] = "TBA"
+                section[section_num + " start time am"] = True
+                section[section_num + " end time am"] = True
+
+                if to_parse[0] != 'TBA':
+                    time_tuples = to_parse[0].partition('-')[::2]
+
+                    section[section_num + " start time"] = time_tuples[0][:-1]
+                    section[section_num + " end time"] = time_tuples[1][:-1]
+                    
+                    section[section_num +
+                            " start time am"] = False if time_tuples[0][-1] != "a" else True
+                    section[section_num +
+                            " end time am"] = False if time_tuples[1][-1] != "a" else True
+
+                    to_parse = to_parse[1:]
+
+                # Adjust list because time was given, but not building or room.
+                if (len(to_parse) > 1) and (to_parse[0] == to_parse[1] == 'TBA'):
+                    to_parse = to_parse[1:]
+
+                # The Building. Assume Blank.
+                section[section_num + " building"] = 'Blank'
+
+                if to_parse[0] != 'TBA':
+                    section[section_num + " building"] = to_parse[0]
+                    to_parse = to_parse[1:]
+
+                # The Room.
+                section[section_num + " room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
+
+                # Readjust the list.
+                to_parse = ' '.join(to_parse[1:])
+
+                # Find position of first number in string.
+                try:
+                    num_loc = number_regex.search(to_parse).start()
+                except AttributeError:
+                    num_loc = 0
+
+                # Assume Blank.
+                section[section_num + " firstname"] = 'Blank'
+                section[section_num + " lastname"] = 'Blank'
+                section[section_num + " middlename"] = 'Blank'
+                section[section_num + " seats taken"] = 'Blank'
+                section[section_num + " seats available"] = 'Blank'
+
+                # Note for seat enrollments:
+                # A. WAITLIST FULL, the seats taken is the amount over plus the seats available.
+                # B. UNLIMITED seats, the seats taken is max integer.
+                # C. None of those, the seats taken is a positive interger.
+
+                # Handles Teacher, Seats Taken, and Seats Offered.
+                if 'FULL' in to_parse:
+                    temp = to_parse.find('FULL')
+
+                    if temp != 0:
+                        if 'Staff' in to_parse:
+                            section[section_num + " firstname"] = 'Staff'
+                        else:
+                            name = to_parse[:temp - 1].partition(',')
+
+                            # First name & last name.
+                            section[section_num + " firstname"] = name[0]
+                            section[section_num + " lastname"] = name[2][1:].split(' ')[0]
+
+                            # Middle name.
+                            try:
+                                section[section_num +
+                                        " middlename"] = name[2][1:].split(' ')[1]
+                            except IndexError:
+                                pass
+
+                    # Adjust String.
+                    to_parse = to_parse[temp:]
+
+                    taken = int(to_parse[to_parse.find('(') + 1:to_parse.find(')')])
+                    taken += int(to_parse[(to_parse.find(')') + 2):])
+
+                    # Seat Information: Amount of seats taken (WAITLIST Full).
+                    tracker[TIMESTAMP] = taken
+                    section[section_num + " seats taken"] = taken
+                    section[section_num +
+                            " seats available"] = int(to_parse[(to_parse.find(')') + 2):])
+
+                elif 'Unlim' in to_parse:
+                    if 'Staff ' in to_parse:
+                        # First, Last, and middle names.
+                        section[section_num + " firstname"] = 'Staff'
+                    else:
+                        name = to_parse[:to_parse.find('Unlim') - 1].partition(',')
+
+                        # First name & last name.
+                        section[section_num + " firstname"] = name[0]
+                        section[section_num + " lastname"] = name[2].strip().split(' ')[0]
+
+                        # Middle name.
+                        try:
+                            section[section_num +
+                                    " middlename"] = name[2].strip().split(' ')[1]
+                        except IndexError:
+                            pass
+
+                    # Seat information. -1 indicates unlimited seats.
+                    tracker[TIMESTAMP] = sys.maxint
+                    section[section_num + " seats taken"] = sys.maxint
+                    section[section_num + " seats available"] = sys.maxint
+
+                # Name and seat information.
+                elif num_loc != 0:
+                    name = to_parse[:num_loc].strip().partition(',')
+
+                    # First name.
+                    if name[0] != '':
+                        section[section_num + " firstname"] = name[0]
+                    else:
+                        pass
+
+                    # Last name.
+                    if name[2].strip().split(' ')[0] != '':
+                        section[section_num + " lastname"] = name[2].strip().split(' ')[0]
+                    else:
+                        pass
+
+                    # Middle name.
+                    try:
+                        section[section_num + " middlename"] = name[2].strip().split(' ')[1]
+                    except IndexError:
+                        pass
+
+                    temp = to_parse[num_loc:].strip().split(' ')
+
+                    # Amount of seats taken (has seats left over.
+                    tracker[TIMESTAMP] = int(temp[0])
+                    section[section_num + " seats taken"] = int(temp[0])
+                    section[section_num + " seats available"] = int(temp[1])
+
+                # Just staff and no seat information.
+                elif to_parse.strip() == 'Staff':
+                    section[section_num + " firstname"] = 'Staff'
+
+                # Name and no seat information. Blanks for both the seat information.
+                elif num_loc == 0 and ',' in to_parse:
+                    name = to_parse.strip().partition(',')
+
+                    # First name.
+                    if name[0] != '':
+                        section[section_num + " firstname"] = name[0]
+                    else:
+                        pass
+
+                    # Last name.
+                    if name[2].strip().split(' ')[0] != '':
+                        section[section_num + " lastname"] = name[2].strip().split(' ')[0]
+                    else:
+                        pass
+
+                    # Middle name.
+                    try:
+                        section[section_num + " middlename"] = name[2].strip().split(' ')[1]
+                    except IndexError:
+                        pass
+
+                # No name but seat info - think discussion sections without teacher name.
+                elif num_loc == 0 and to_parse:
+                    try:
+                        temp = to_parse.split(' ')
+
+                        tracker[TIMESTAMP] = int(temp[0])
+                        section[section_num + " seats taken"] = int(temp[0])
+                        section[section_num + " seats available"] = int(temp[1])
+
+                    except IndexError:
+                        print("ERROR")
+                        sys.exit()
+
+                # TODO: Add tracker information.
 
             # Finds Final / Midterm Info.
-            if ('FI' or 'MI') in item:
+            if '****' in item:
                 exam = item.split(' ')
                 exam_info = {}
 
@@ -485,7 +465,8 @@ def parse_list(results):
                 else:
                     midterm = exam_info
 
-        key = generate_key(header, section, final)
+        # key = generate_key(header, section, final)
+        key = int(re.findall(r"\D(\d{6})\D", str(lst))[0])
         key_tracker = {key: [tracker]}
 
         # If you have a list of collision keys, put one here to determine the problematic classes.
@@ -509,27 +490,10 @@ def format_list(lst):
         parsed, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
-    return (x for x in parsed if len(x) > 2 and 'Cancelled' not in x)
+    non_canceled = (x for x in parsed if len(x) > 2 and 'Cancelled' not in x)
 
-
-def write_data(lst):
-    '''Writes the data to a file.'''
-
-    with open("tracking.txt", "w") as open_file2:
-        with open("dataset3.txt", "w") as open_file:
-            for item in lst:
-                for i in item:
-                    if isinstance(i, dict):
-                        open_file2.write(str(i))
-                        open_file2.write("\n")
-                        open_file2.write("\n")
-                    elif isinstance(i, int):
-                        pass
-                    else:
-                        open_file.write(str(i))
-
-                open_file.write("\n")
-                open_file.write("\n")
+    # Gets rid of classes without 6-digit identifications.
+    return (x for x in non_canceled if re.findall(r"\D(\d{6})\D", str(x)))
 
 
 def write_to_db(lst):
@@ -552,7 +516,7 @@ def main():
     global NUMBER_PAGES
 
     # Update postData and request session for previously parsed classes.
-    quarter = update_data()
+    quarter = update_post()
 
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
 
@@ -566,7 +530,7 @@ def main():
     results = get_data(((SOC_URL + str(x), x)
                         for x in range(1, NUMBER_PAGES + 1)))
 
-    # Format list into proper format
+    # Format list into proper format.
     semi = format_list(results)
 
     # Parses items in list into usable portions.
