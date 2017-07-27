@@ -56,15 +56,22 @@ def get_subjects():
     return {'selectedSubjects': [i.text for i in soup if len(i.text) <= 4]}
 
 
-def update_post():
-    '''Updates post request with quarter and subjects selected.'''
+def setup():
+    '''Updates post request with quarter and subjects selected. Also gets NUMBER_PAGES.'''
 
-    POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
-    # POST_DATA.update({'selectedTerm': "SA17"})
+    # Global Variable.
+    global NUMBER_PAGES
 
+    # POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
+    POST_DATA.update({'selectedTerm': "SA17"})
 
     POST_DATA.update(get_subjects())
     # POST_DATA.update({'selectedSubjects': 'CSE'})
+
+    post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
+
+    # The total number of pages to parse.
+    NUMBER_PAGES = int(re.search(r"of&nbsp;([0-9]*)", post).group(1))
 
     return POST_DATA['selectedTerm']
 
@@ -123,7 +130,7 @@ def get_data(tied):
                 except KeyError:
                     pass
 
-        print ("Completed Page {} of {}".format(page, NUMBER_PAGES))
+        print("Completed Page {} of {}".format(page, NUMBER_PAGES))
         master.append(page_list)
 
     return master
@@ -207,7 +214,6 @@ def parse_list(results):
             # Finds Section Info.
             if '....' in item:
                 counter += 1
-                '''Parses the section information for parse_list.'''
 
                 number_regex = re.compile(r'\d+')
                 days_regex = re.compile(r'[A-Z][^A-Z]*')
@@ -265,7 +271,7 @@ def parse_list(results):
 
                     section[section_num + " start time"] = time_tuples[0][:-1]
                     section[section_num + " end time"] = time_tuples[1][:-1]
-                    
+
                     section[section_num +
                             " start time am"] = False if time_tuples[0][-1] != "a" else True
                     section[section_num +
@@ -285,7 +291,8 @@ def parse_list(results):
                     to_parse = to_parse[1:]
 
                 # The Room.
-                section[section_num + " room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
+                section[section_num +
+                        " room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
 
                 # Readjust the list.
                 to_parse = ' '.join(to_parse[1:])
@@ -320,7 +327,8 @@ def parse_list(results):
 
                             # First name & last name.
                             section[section_num + " firstname"] = name[0]
-                            section[section_num + " lastname"] = name[2][1:].split(' ')[0]
+                            section[section_num +
+                                    " lastname"] = name[2][1:].split(' ')[0]
 
                             # Middle name.
                             try:
@@ -332,7 +340,8 @@ def parse_list(results):
                     # Adjust String.
                     to_parse = to_parse[temp:]
 
-                    taken = int(to_parse[to_parse.find('(') + 1:to_parse.find(')')])
+                    taken = int(to_parse[to_parse.find(
+                        '(') + 1:to_parse.find(')')])
                     taken += int(to_parse[(to_parse.find(')') + 2):])
 
                     # Seat Information: Amount of seats taken (WAITLIST Full).
@@ -346,11 +355,13 @@ def parse_list(results):
                         # First, Last, and middle names.
                         section[section_num + " firstname"] = 'Staff'
                     else:
-                        name = to_parse[:to_parse.find('Unlim') - 1].partition(',')
+                        name = to_parse[:to_parse.find(
+                            'Unlim') - 1].partition(',')
 
                         # First name & last name.
                         section[section_num + " firstname"] = name[0]
-                        section[section_num + " lastname"] = name[2].strip().split(' ')[0]
+                        section[section_num +
+                                " lastname"] = name[2].strip().split(' ')[0]
 
                         # Middle name.
                         try:
@@ -376,13 +387,15 @@ def parse_list(results):
 
                     # Last name.
                     if name[2].strip().split(' ')[0] != '':
-                        section[section_num + " lastname"] = name[2].strip().split(' ')[0]
+                        section[section_num +
+                                " lastname"] = name[2].strip().split(' ')[0]
                     else:
                         pass
 
                     # Middle name.
                     try:
-                        section[section_num + " middlename"] = name[2].strip().split(' ')[1]
+                        section[section_num +
+                                " middlename"] = name[2].strip().split(' ')[1]
                     except IndexError:
                         pass
 
@@ -409,13 +422,15 @@ def parse_list(results):
 
                     # Last name.
                     if name[2].strip().split(' ')[0] != '':
-                        section[section_num + " lastname"] = name[2].strip().split(' ')[0]
+                        section[section_num +
+                                " lastname"] = name[2].strip().split(' ')[0]
                     else:
                         pass
 
                     # Middle name.
                     try:
-                        section[section_num + " middlename"] = name[2].strip().split(' ')[1]
+                        section[section_num +
+                                " middlename"] = name[2].strip().split(' ')[1]
                     except IndexError:
                         pass
 
@@ -426,7 +441,8 @@ def parse_list(results):
 
                         tracker[TIMESTAMP] = int(temp[0])
                         section[section_num + " seats taken"] = int(temp[0])
-                        section[section_num + " seats available"] = int(temp[1])
+                        section[section_num +
+                                " seats available"] = int(temp[1])
 
                     except IndexError:
                         print("ERROR")
@@ -512,29 +528,20 @@ def write_to_db(lst):
 def main():
     '''The main function.'''
 
-    # Global Variable.
-    global NUMBER_PAGES
-
-    # Update postData and request session for previously parsed classes.
-    quarter = update_post()
-
-    post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
-
-    # The total number of pages to parse.
-    NUMBER_PAGES = int(re.search(r"of&nbsp;([0-9]*)", post).group(1))
+    # Update POST_DATA and sets NUMBER_PAGES to parse.
+    quarter = setup()
 
     # Prints which quarter we are fetching data from and how many pages.
     print("Fetching data for {} from {} pages\n".format(quarter, NUMBER_PAGES))
 
     # Gets the data using urls. Input is url, page number pairings.
-    results = get_data(((SOC_URL + str(x), x)
-                        for x in range(1, NUMBER_PAGES + 1)))
+    raw_data = get_data(((SOC_URL + str(x), x) for x in range(1, NUMBER_PAGES + 1)))
 
     # Format list into proper format.
-    semi = format_list(results)
+    formatted_data = format_list(raw_data)
 
     # Parses items in list into usable portions.
-    finished = parse_list(semi)
+    finished = parse_list(formatted_data)
 
     # If our unique ID keys aren't for some reason unique, we want to stop.
     if check_collision_key(finished) is False:
