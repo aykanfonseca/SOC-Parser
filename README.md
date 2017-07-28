@@ -4,9 +4,7 @@ Parses the schedule of classes. The program is extensible and has few functions.
 ## How to use (Mac) :computer:
 There are a couple of python modules you must install first to run this program.
 
-**NOTE: Repeat steps 3-6 with pip3 for python3 setup.**
-
-If you already have pip installed, you can proceed to step 3.
+**NOTE**: Repeat steps 3-6 with pip3 for python3 setup. If you already have pip installed, you can proceed to step 3.
 
 1. Install [homebrew](https://brew.sh). This is a useful general package manager for macOS. 
 2. Install Python via homebrew - `brew install python`. 
