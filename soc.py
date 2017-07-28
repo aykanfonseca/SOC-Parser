@@ -67,7 +67,7 @@ def setup():
 
     # The quarter to parse.
     # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': ['BILD', 'CSE']})
+    POST_DATA.update({'selectedSubjects': ['BILD']})
 
     # The total number of pages to parse.
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
@@ -176,7 +176,7 @@ def parse_list(results):
         final = {}
         midterm = {}
         tracker = {}
-        section = {}
+        all_sections = {}
         counter = 0
 
         number_regex = re.compile(r'\d+')
@@ -211,6 +211,8 @@ def parse_list(results):
 
             # Finds Section Info.
             if '....' in item:
+                section = {}
+
                 counter += 1
 
                 number_regex = re.compile(r'\d+')
@@ -448,6 +450,9 @@ def parse_list(results):
 
                 # TODO: Add tracker information.
 
+                # Add section to all_section dictionary.
+                all_sections[counter] = section
+
             # Finds Final / Midterm Info.
             if '****' in item:
                 exam = item.split(' ')
@@ -483,7 +488,7 @@ def parse_list(results):
         key = int(re.findall(r"\D(\d{6})\D", str(lst))[0])
         key_tracker = {key: tracker}
 
-        parsed.append({"header": header, "section": section, "midterm": midterm, "final": final, "key_tracker": key_tracker, "key": key})
+        parsed.append({"header": header, "section": all_sections, "midterm": midterm, "final": final, "key_tracker": key_tracker, "key": key})
 
     return parsed
 
@@ -510,11 +515,11 @@ def write_to_db(lst, quarter):
 
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
-    path = "/quarter/" + quarter + "/"
+    path = "/quarter/" + quarter
 
     for i in lst:
         key = i["key"]
-        result = database.post(path + str(key), i)
+        database.put(path, key, i)
 
 
 def main():
