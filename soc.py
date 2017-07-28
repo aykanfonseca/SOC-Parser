@@ -12,8 +12,6 @@ from cachecontrol import CacheControl
 from firebase import firebase
 import requests
 
-print(sys.version)
-
 # Global Variable.
 SESSION = CacheControl(requests.Session())
 NUMBER_PAGES = 0
@@ -62,26 +60,29 @@ def setup():
     # Global Variable.
     global NUMBER_PAGES
 
-    # POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
-    POST_DATA.update({'selectedTerm': "SA17"})
+    # The subjects to parse.
+    POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
+    # POST_DATA.update({'selectedTerm': "SA17"})
+    # POST_DATA.update({'selectedTerm': "SP17"})
 
+    # The quarter to parse.
     # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': 'BILD'})
-
-    post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
+    POST_DATA.update({'selectedSubjects': ['BILD', 'CSE']})
 
     # The total number of pages to parse.
+    post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
     NUMBER_PAGES = int(re.search(r"of&nbsp;([0-9]*)", post).group(1))
 
     return POST_DATA['selectedTerm']
 
 
-def get_data(tied):
-    '''Parses the data of one page.'''
+def get_data(url_page_tuple):
+    '''Parses the data of all pages.'''
 
-    master = []
+    # Cache NUMBER_PAGES to avoid calls to global var.
+    master, total = [], NUMBER_PAGES
 
-    for url, page in tied:
+    for url, page in url_page_tuple:
         # Occasionally, the first call will fail.
         try:
             post = SESSION.get(url, stream=True)
@@ -115,13 +116,13 @@ def get_data(tied):
                 try:
                     item_class = str(item['class'][0])
 
-                    if 'nonenrtxt' in item_class and ('FI' or 'MI') in parsed_text:
+                    if 'nonenrtxt' in item_class and any(x in parsed_text for x in ('FI', 'MI')):
                         page_list.append(str('****' + parsed_text))
 
                     elif 'sectxt' in item_class and 'Cancelled' not in parsed_text:
                         page_list.append(str('....' + parsed_text))
 
-                        # Check if there is an email.
+                        # Check for an email.
                         try:
                             page_list.append(str(item.find('a')['href'])[7:])
                         except TypeError:
@@ -130,13 +131,13 @@ def get_data(tied):
                 except KeyError:
                     pass
 
-        print("Completed Page {} of {}".format(page, NUMBER_PAGES))
+        print("Completed Page {} of {}".format(page, total))
         master.append(page_list)
 
     return master
 
 
-def check_collision_key(lst):
+def check_collision(lst):
     '''Compares all keys and makes sure they are unique.'''
 
     seen = set()
@@ -158,9 +159,9 @@ def check_collision_key(lst):
     # This code will print the keys that collided in a list.
     if differences:
         print(differences)
-        return False
+        return True
 
-    return True
+    return False
 
 
 def parse_list(results):
@@ -171,7 +172,7 @@ def parse_list(results):
     for lst in results:
         # Components of a class.
         header = {}
-        email = []
+        email = set()
         final = {}
         midterm = {}
         tracker = {}
@@ -205,9 +206,8 @@ def parse_list(results):
             # TODO: What happens with two emails? Modify getData as well. Change Email to set().
 
             # Find Email Info.
-            if (('No Email' in item) or ('.edu' in item)) and (item.strip() not in email):
-                if (not email) or ('No Email' not in item):
-                    email.append(item.strip())
+            if ('No Email' in item) or ('.edu' in item):
+                email.add(item.strip())
 
             # Finds Section Info.
             if '....' in item:
@@ -495,11 +495,11 @@ def format_list(lst):
     parsed = (item for sublist in lst for item in sublist)
 
     # Groups list into lists of lists based on a delimiter word.
-    parsed = (list(y) for x, y in itertools.groupby(
+    regrouped = (list(y) for x, y in itertools.groupby(
         parsed, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
-    non_canceled = (x for x in parsed if len(x) > 2 and 'Cancelled' not in x)
+    non_canceled = (x for x in regrouped if len(x) > 2 and 'Cancelled' not in x)
 
     # Gets rid of classes without 6-digit identifications.
     return (x for x in non_canceled if re.findall(r"\D(\d{6})\D", str(x)))
@@ -519,6 +519,7 @@ def write_to_db(lst, quarter):
 
 def main():
     '''The main function.'''
+    print(sys.version)
 
     # Update POST_DATA and sets NUMBER_PAGES to parse.
     quarter = setup()
@@ -536,7 +537,7 @@ def main():
     finished = parse_list(formatted_data)
 
     # If our unique ID keys aren't for some reason unique, we want to stop.
-    if check_collision_key(finished) is False:
+    if check_collision(finished):
         print("ERROR: Hashing algorithm encountered a collision!")
         sys.exit()
 
