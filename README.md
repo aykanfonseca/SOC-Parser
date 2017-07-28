@@ -13,8 +13,7 @@ There are a couple of python modules you must install first to run this program.
 5. Install bs4 - `pip install bs4`.
 6. Install cachecontrol - `pip install cachecontrol`.
 7. Install firebase - `pip install python-firebase`.
-
-For a Python 3 setup, install Python 3 via homebrew - `brew install python3`. Then, repeat steps 3-7 with `pip3` instead of `pip`.
+8. (OPTIONAL) Python 3 setup: install Python 3 via homebrew - `brew install python3`. Then, repeat steps 3-7 with `pip3` instead of `pip`.
 
 ## Improvements to do :wrench:
 * Account for multiple teachers, sections, emails, and more.
