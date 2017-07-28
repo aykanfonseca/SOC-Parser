@@ -1,7 +1,7 @@
 # SOC Parser
 Parses the schedule of classes. The program is extensible and has few functions. It can scrape data from any quarter specified and all or specific subjects. Also recently implemented is tracking on a per-class level.
 
-# How to use (Mac)
+## How to use (Mac)
 There are a couple of python modules you must install first to run this program.
 
 **NOTE: Repeat steps 3-6 with pip3 for python3 setup.**
@@ -15,8 +15,8 @@ If you already have pip installed, you can proceed to step 3.
 5. Install bs4 - `pip install bs4`.
 6. Install cachecontrol - `pip install cachecontrol`.
 
-# Improvements to do
+## Improvements to do
 1. Account for multiple teachers, sections, emails, and more.
 
-## TIPS
+### TIPS
 1. You can delete an entire firebase project and start from scratch.
