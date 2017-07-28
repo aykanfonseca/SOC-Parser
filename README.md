@@ -18,5 +18,5 @@ If you already have pip installed, you can proceed to step 3.
 ## Improvements to do
 * Account for multiple teachers, sections, emails, and more.
 
-### TIPS
+#### TIPS
 * You can delete an entire firebase project and start from scratch.
