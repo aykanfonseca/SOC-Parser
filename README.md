@@ -16,7 +16,7 @@ If you already have pip installed, you can proceed to step 3.
 6. Install cachecontrol - `pip install cachecontrol`.
 
 ## Improvements to do
-1. Account for multiple teachers, sections, emails, and more.
+* Account for multiple teachers, sections, emails, and more.
 
 ### TIPS
-1. You can delete an entire firebase project and start from scratch.
+* You can delete an entire firebase project and start from scratch.
