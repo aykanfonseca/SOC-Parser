@@ -63,7 +63,6 @@ def setup():
     # The subjects to parse.
     POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
     # POST_DATA.update({'selectedTerm': "SA17"})
-    # POST_DATA.update({'selectedTerm': "SP17"})
 
     # The quarter to parse.
     # POST_DATA.update(get_subjects())
@@ -175,7 +174,7 @@ def parse_list(results):
         email = set()
         final = {}
         midterm = {}
-        tracker = {}
+        seats = {}
         all_sections = {}
         counter = 0
 
@@ -224,10 +223,10 @@ def parse_list(results):
 
                 # ID.
                 if num_loc == 4:
-                    section[section_num + " ID"] = item[4:10].strip()
+                    section[section_num + " id"] = item[4:10].strip()
                     to_parse = to_parse[1:]
                 else:
-                    section[section_num + " ID"] = 'Blank'
+                    section[section_num + " id"] = 'Blank'
                     to_parse[0] = to_parse[0][4:]
 
                 # Meeting type and Section.
@@ -345,7 +344,7 @@ def parse_list(results):
                     taken += int(to_parse[(to_parse.find(')') + 2):])
 
                     # Seat Information: Amount of seats taken (WAITLIST Full).
-                    tracker[TIMESTAMP] = taken
+                    seat_tracking = (taken, int(to_parse[(to_parse.find(')') + 2):]))
                     section[section_num + " seats taken"] = taken
                     section[section_num +
                             " seats available"] = int(to_parse[(to_parse.find(')') + 2):])
@@ -371,7 +370,7 @@ def parse_list(results):
                             pass
 
                     # Seat information. -1 indicates unlimited seats.
-                    tracker[TIMESTAMP] = sys.maxint
+                    seat_tracking = (sys.maxint, sys.maxint)
                     section[section_num + " seats taken"] = sys.maxint
                     section[section_num + " seats available"] = sys.maxint
 
@@ -402,7 +401,7 @@ def parse_list(results):
                     temp = to_parse[num_loc:].strip().split(' ')
 
                     # Amount of seats taken (has seats left over.
-                    tracker[TIMESTAMP] = int(temp[0])
+                    seat_tracking = (int(temp[0]), int(temp[1]))
                     section[section_num + " seats taken"] = int(temp[0])
                     section[section_num + " seats available"] = int(temp[1])
 
@@ -439,7 +438,7 @@ def parse_list(results):
                     try:
                         temp = to_parse.split(' ')
 
-                        tracker[TIMESTAMP] = int(temp[0])
+                        seat_tracking = (int(temp[0]), int(temp[1]))
                         section[section_num + " seats taken"] = int(temp[0])
                         section[section_num +
                                 " seats available"] = int(temp[1])
@@ -447,8 +446,6 @@ def parse_list(results):
                     except IndexError:
                         print("ERROR")
                         sys.exit()
-
-                # TODO: Add tracker information.
 
                 # Add section to all_section dictionary.
                 all_sections[counter] = section
@@ -486,9 +483,14 @@ def parse_list(results):
 
         # Uses first 6-digit id as key.
         key = int(re.findall(r"\D(\d{6})\D", str(lst))[0])
-        key_tracker = {key: tracker}
+        seats = {TIMESTAMP: seat_tracking}
 
-        parsed.append({"header": header, "section": all_sections, "midterm": midterm, "final": final, "key_tracker": key_tracker, "key": key})
+        temp = {"header": header, "section": all_sections, "midterm": midterm}
+        temp["final"] = final
+        temp["seats"] = seats
+        temp["key"] = key
+
+        parsed.append(temp)
 
     return parsed
 
@@ -515,12 +517,22 @@ def write_to_db(lst, quarter):
 
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
-    path = "/quarter/" + quarter
+    path = "/quarter/" + quarter + "/"
 
     for i in lst:
-        key = i["key"]
-        database.put(path, key, i)
+        master_key = i["key"]
 
+        # Figure out how to append data to node.
+        # for key, value in i.items():
+        #     if key is "seats":
+                # print key
+                # print value
+                # print ("\n")
+                # database.post(path + str(master_key), master_key, {key:value})
+
+    # for i in lst:
+    #     master_key = i["key"]
+    #     database.put(paths, master_key, i)
 
 def main():
     '''The main function.'''
