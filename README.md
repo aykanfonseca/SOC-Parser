@@ -15,6 +15,10 @@ There are a couple of python modules you must install first to run this program.
 7. Install firebase - `pip install python-firebase`.
 8. (OPTIONAL) Python 3 setup: Install Python 3 via homebrew - `brew install python3`. Then, repeat steps 3-7 with `pip3` instead of `pip`.
 
+## Coding Rules :straight_ruler:
+1. Flexible and extensible. This means don't hard code values "FA16", "CSE", etc.. It also means we have a separation of concerns when it makes sense to do so. For example, we have separation of concerns for get_quarters and get_subjects to provide fine-tool optimizations when appropriate for either but also for specific scrapes (a future feature).
+2. Readable and easy to understand. This means writing excellent comments, debug tools, and making lines shorter and simpler. This is a bit difficult, especially with the parse_list method which appears fairly archaic and magical unless we see visibly how the data is structured.
+
 ## Improvements to do :wrench:
 * Account for multiple teachers, sections, emails, and more.
 
