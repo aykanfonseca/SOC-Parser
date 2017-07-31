@@ -21,6 +21,9 @@ There are a couple of python modules you must install first to run this program.
 
 ## Improvements to do :wrench:
 * Account for multiple teachers, sections, emails, and more.
+* Fix db schema to be more flat for efficient querying. Put everything in the header on the first level. 
 
 #### TIPS :bulb:
 * You can delete an entire firebase project and start from scratch.
+* You can edit the files in Atom / Sublime Text 3 and open the directory containing the files in the terminal window using a keyboard shortcut (needs a package for both).
+* Lint Python files using Pylint.

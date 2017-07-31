@@ -1,4 +1,4 @@
-'''Python program to scrape UC San Diego'SESSION Schedule of Classes. Created by Aykan Fonseca.'''
+'''Python program to scrape UC San Diego's Schedule of Classes. Created by Aykan Fonseca.'''
 
 # Builtins
 import itertools
@@ -12,16 +12,17 @@ from cachecontrol import CacheControl
 from firebase import firebase
 import requests
 
-# Global Variable.
+# Global Variables.
 SESSION = CacheControl(requests.Session())
 NUMBER_PAGES = 0
 
-# Create a timestamp for the start of scrape in year-month-day-hour-minute.
+# A timestamp for the scrape in year-month-day-hour-minute.
 TIMESTAMP = int(time.strftime("%Y%m%d%H%M"))
 
 # Current year and next year but only the last two digits.
 YEAR = int(time.strftime("%Y"))
-VALID_YEARS = (repr(YEAR % 100), repr(YEAR + 1 % 100))
+
+VALID_YEARS = (YEAR % 100, YEAR + 1 % 100)
 
 # URL to the entire list of classes.
 SOC_URL = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
@@ -35,14 +36,14 @@ POST_DATA = {'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'conta
              'schedOption2': 'true'}
 
 
-def get_quarters(url):
+def get_quarters():
     '''Gets all the quarters listed in drop down menu.'''
 
-    quarters = SESSION.get(url, stream=True)
+    quarters = SESSION.get(SOC_URL, stream=True)
     q_soup = BeautifulSoup(quarters.content, 'lxml').findAll('option')
 
     # Gets the rest of the quarters for the years specified in VALID_YEARS.
-    return [x['value'] for x in q_soup if x['value'][2:] in VALID_YEARS]
+    return [x['value'] for x in q_soup if x['value'][2:] in str(VALID_YEARS)]
 
 
 def get_subjects():
@@ -61,7 +62,7 @@ def setup():
     global NUMBER_PAGES
 
     # The subjects to parse.
-    POST_DATA.update({'selectedTerm': get_quarters(SOC_URL)[0]})
+    POST_DATA.update({'selectedTerm': get_quarters()[0]})
     # POST_DATA.update({'selectedTerm': "SA17"})
 
     # The quarter to parse.
@@ -78,15 +79,17 @@ def setup():
 def get_data(url_page_tuple):
     '''Parses the data of all pages.'''
 
-    # Cache NUMBER_PAGES to avoid calls to global var.
-    master, total = [], NUMBER_PAGES
+    # Cache NUMBER_PAGES & SESSION to avoid calls to global vars.
+    master = []
+    total = NUMBER_PAGES
+    s = SESSION
 
     for url, page in url_page_tuple:
         # Occasionally, the first call will fail.
         try:
-            post = SESSION.get(url, stream=True)
+            post = s.get(url, stream=True)
         except requests.exceptions.HTTPError:
-            post = SESSION.get(url, stream=True)
+            post = s.get(url, stream=True)
 
         # Parse the response into HTML and look only for tr tags.
         tr_elements = BeautifulSoup(post.content, 'lxml').findAll('tr')
@@ -106,24 +109,23 @@ def get_data(url_page_tuple):
 
             # The header of each class: units, department, course number, etc..
             if 'Units' in parsed_text:
-                page_list.append((' NXC'))
-                page_list.append(
-                    str(current_dept + " " + parsed_text.partition(' Prereq')[0]))
+                page_list.append(' NXC')
+                page_list.append(current_dept + " " + parsed_text.partition(' Prereq')[0])
 
-            # Exam Information, Section information, and Email.
+            # Exam Information & Section information (and Email).
             else:
                 try:
-                    item_class = str(item['class'][0])
+                    item_class = item['class'][0]
 
-                    if 'nonenrtxt' in item_class and any(x in parsed_text for x in ('FI', 'MI')):
-                        page_list.append(str('****' + parsed_text))
+                    if 'nonenrtxt' == item_class and any(x in parsed_text for x in ('FI', 'MI')):
+                        page_list.append('****' + parsed_text)
 
-                    elif 'sectxt' in item_class and 'Cancelled' not in parsed_text:
-                        page_list.append(str('....' + parsed_text))
+                    elif 'sectxt' == item_class and 'Cancelled' not in parsed_text:
+                        page_list.append('....' + parsed_text)
 
                         # Check for an email.
                         try:
-                            page_list.append(str(item.find('a')['href'])[7:])
+                            page_list.append(item.find('a')['href'][7:])
                         except TypeError:
                             page_list.append('No Email')
 
@@ -519,8 +521,8 @@ def write_to_db(lst, quarter):
 
     path = "/quarter/" + quarter + "/"
 
-    for i in lst:
-        master_key = i["key"]
+    # for i in lst:
+    #     master_key = i["key"]
 
         # Figure out how to append data to node.
         # for key, value in i.items():
@@ -533,6 +535,7 @@ def write_to_db(lst, quarter):
     # for i in lst:
     #     master_key = i["key"]
     #     database.put(paths, master_key, i)
+
 
 def main():
     '''The main function.'''
