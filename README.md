@@ -28,7 +28,7 @@ There are a couple of python modules you must install first to run this program.
 * You can edit the files in Atom / Sublime Text 3 and open the directory containing the files in the terminal window using a keyboard shortcut (needs a package for both).
 * Lint Python files using Pylint.
 
-## Brief Explanations
+## Brief Explanations :mag:
 * **`get_quarters`**: Retrieves all the quarters from the drop-down menu shown [here](https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudent.htm). For now, this function only retrieves quarters from the current and following year. This can be changed by altering `VALID_YEARS`.
 * **`get_subjects`**: Retrieves all the subjects from the multi-select menu shown [here](https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudent.htm). It does this by parsing this [page](http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html) which includes all the subjects shown in the multi-select menu. 
 * **`setup`**: This function does three things. First, it updates the post request with data gathered from `get_quarters`. Second, it updates the post request with data gathered from `get_subjects`. Finally, we submit the post request and find out the number of pages to parse. This number is then stored in `NUMBER_PAGES`. After this function is finished executing, we return the quarter we are parsing so we can print it out later.
