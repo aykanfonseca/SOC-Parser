@@ -29,4 +29,4 @@ There are a couple of python modules you must install first to run this program.
 * Lint Python files using Pylint.
 
 ## Brief Explanations
-* **`get_quarters`**: 
+* **`get_quarters`**: Retrieves all the quarters from the drop-down menu shown [here](https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudent.htm). For now, this function only retrieves quarters from the current and following year. This can be changed by altering `VALID_YEARS`.
