@@ -27,3 +27,6 @@ There are a couple of python modules you must install first to run this program.
 * You can delete an entire firebase project and start from scratch.
 * You can edit the files in Atom / Sublime Text 3 and open the directory containing the files in the terminal window using a keyboard shortcut (needs a package for both).
 * Lint Python files using Pylint.
+
+## Brief Explanations
+* `**get_quarters**`: 
