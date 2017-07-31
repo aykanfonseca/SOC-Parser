@@ -29,4 +29,4 @@ There are a couple of python modules you must install first to run this program.
 * Lint Python files using Pylint.
 
 ## Brief Explanations
-* `**get_quarters**`: 
+* **`get_quarters`**: 
