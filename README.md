@@ -24,10 +24,9 @@ There are a couple of python modules you must install first to run this program.
 * Fix db schema to be more flat for efficient querying. Put everything in the header on the first level. 
 * `setup` is where we have granular control over the subjects and quarter to be parsed. Combine this with a command line interface and knowledge of when the course data was last updated. This allows us to update the data stored in firebase faster as we would parse less.
 
-#### TIPS :bulb:
+**TIPS**
 * You can delete an entire firebase project and start from scratch.
 * You can edit the files in Atom / Sublime Text 3 and open the directory containing the files in the terminal window using a keyboard shortcut (needs a package for both).
-* Lint Python files using Pylint.
 
 ## Brief Explanations :mag:
 * **`get_quarters`**: Retrieves all the quarters from the drop-down menu shown [here](https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudent.htm). For now, this function only retrieves quarters from the current and following year. This can be changed by altering `VALID_YEARS`.
@@ -35,3 +34,4 @@ There are a couple of python modules you must install first to run this program.
 * **`setup`**: This function does three things. First, it updates the post request with data gathered from `get_quarters`. Second, it updates the post request with data gathered from `get_subjects`. Finally, we submit the post request and identify the number of pages to parse (`NUMBER_PAGES`). We return the quarter we are parsing so we can print it out later. 
 * **`get_data`**: Retrieves all the data from each page we will parse. It accepts a generator, `url_page_tuple`, which generates a tuple `(page url, page number)` for each page to parse. We parse each page, appending the data to the list `master`, and then returning `master` upon completion. This function's only _gets_ all of the data. It does not parse any data gathered into separate values. 
 * **`check_collision`**: Checks the parsed data for any duplicate keys. As keys uniquely identify classes, we must ensure all  keys are unique. If there are duplicate keys, this function prints out each of the duplicates so we can isolate the problem. 
+* **TODO**
