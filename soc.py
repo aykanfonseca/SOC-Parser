@@ -487,10 +487,11 @@ def parse_list(results):
         key = int(re.findall(r"\D(\d{6})\D", str(lst))[0])
         seats = {TIMESTAMP: seat_tracking}
 
-        temp = {"header": header, "section": all_sections, "midterm": midterm}
+        temp = {"section": all_sections, "midterm": midterm}
         temp["final"] = final
         temp["seats"] = seats
         temp["key"] = key
+        temp.update(header)
 
         parsed.append(temp)
 
@@ -524,17 +525,17 @@ def write_to_db(lst, quarter):
     # for i in lst:
     #     master_key = i["key"]
 
-        # Figure out how to append data to node.
-        # for key, value in i.items():
-        #     if key is "seats":
-                # print key
-                # print value
-                # print ("\n")
-                # database.post(path + str(master_key), master_key, {key:value})
+    #     #Figure out how to append data to node.
+    #     for key, value in i.items():
+    #         if key is "seats":
+    #             print key
+    #             print value
+    #             print ("\n")
+    #             database.post(path + str(master_key), master_key, {key:value})
 
-    # for i in lst:
-    #     master_key = i["key"]
-    #     database.put(paths, master_key, i)
+    for i in lst:
+        master_key = i["key"]
+        database.put(path, master_key, i)
 
 
 def main():
