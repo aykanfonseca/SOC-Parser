@@ -1,52 +1,38 @@
 import requests
 from bs4 import BeautifulSoup
+from firebase import firebase
 
 bookstore_url = "https://ucsdbkst.ucsd.edu/wrtx/TextSearch?section="
 
-def readFile(ls):
-    with open("dataset2.txt", "r") as file:
-        for item in Final:
-            for i in item:
-                file.write(str(i))
+def main():
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/", None)
+    result = database.get('/quarter/FA17', None)
 
-            file.write("\n")
-            file.write("\n")
+    term = "FA17"
+    urls = []
 
-def addUniqueCode(ls):
-    # Assign unique code to each item.
-    counter = 1
-    for item in ls:
-        item.insert(0, counter)
-        counter += 1
+    for key, value in result.items():
+        subject = value["department"]
+        course_num = value["course number"]
+        url = bookstore_url + str(key) + "&term=" + term + "&subject=" + subject + "&course=" + course_num
+        urls.append(url)
 
-def main(ls, quarter):
+    print(urls[5])
 
+    post = requests.get(urls[5])
+    soup = BeautifulSoup(post.content, 'lxml').findAll('td')
 
-    addUniqueCode(ls)
+    content = []
 
-    # Create a dictionary.
-    done = dict()
+    for index, value in enumerate(soup):
+        try:
+            if (value["align"] == "CENTER" and value.font is not None):
+                book = soup[index+2].text.partition(", ")
+                content.append({"isRequired": True if soup[index].text == "R" else False, "Author": soup[index+1].text, "Book Title" : book[0], "Book ISBN" : book[2]})
+        except:
+            pass
 
-    # Get the books.
-    for item in ls:
-        dept = item[1][0]
-        course = item[1][1]
-        section = item[2][0]
-        term = quarter
-
-        lastname = item[2][10]
-        firstname = item[2][11]
-
-        unique = dept + course + lastname + firstname
-
-        # We haven't done this before.
-        if unique not in done:
-            done[unique] = item[0]
-            print (unique, item[0])
-            post = requests.get(bookstore_url+section+"&term="+term+"&subject="+dept+"&course="+course)
-            soup = BeautifulSoup(post.content, 'lxml')
-        else:
-            print done[unique]
+    print(content)
 
 if __name__ == '__main__':
     main()
