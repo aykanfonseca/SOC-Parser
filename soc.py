@@ -138,31 +138,21 @@ def get_data(url_page_tuple):
     return master
 
 
-def check_collision(lst):
-    '''Compares all keys and makes sure they are unique.'''
+def format_list(lst):
+    '''Formats the result list into the one we want.'''
 
-    seen = set()
-    differences = []
+    # Flattens list of lists into list.
+    parsed = (item for sublist in lst for item in sublist)
 
-    for item in lst:
-        if item["key"] in seen:
-            differences.append(item["key"])
-        else:
-            seen.add(item["key"])
+    # Groups list into lists of lists based on a delimiter word.
+    regrouped = (list(y) for x, y in itertools.groupby(
+        parsed, lambda z: z == ' NXC') if not x)
 
-    # This will print the sizes. If collision, they will be different.
-    print("---Diagonistic Information---")
-    print("  - # of keys: " + str(len(seen) + len(differences)))
-    print("  - # of unique keys: " + str(len(seen)))
-    print("  - Note: We want them to be the same.")
-    print("")
+    # Sorts list based on sorting criteria.
+    non_canceled = (x for x in regrouped if len(x) > 2 and 'Cancelled' not in x)
 
-    # This code will print the keys that collided in a list.
-    if differences:
-        print(differences)
-        return True
-
-    return False
+    # Gets rid of classes without 6-digit identifications.
+    return (x for x in non_canceled if re.findall(r"\D(\d{6})\D", str(x)))
 
 
 def parse_list(results):
@@ -498,44 +488,59 @@ def parse_list(results):
     return parsed
 
 
-def format_list(lst):
-    '''Formats the result list into the one we want.'''
+def check_collision(lst):
+    '''Compares all keys and makes sure they are unique.'''
 
-    # Flattens list of lists into list.
-    parsed = (item for sublist in lst for item in sublist)
+    seen = set()
+    differences = []
 
-    # Groups list into lists of lists based on a delimiter word.
-    regrouped = (list(y) for x, y in itertools.groupby(
-        parsed, lambda z: z == ' NXC') if not x)
+    for item in lst:
+        if item["key"] in seen:
+            differences.append(item["key"])
+        else:
+            seen.add(item["key"])
 
-    # Sorts list based on sorting criteria.
-    non_canceled = (x for x in regrouped if len(x) > 2 and 'Cancelled' not in x)
+    # This will print the sizes. If collision, they will be different.
+    print("---Diagonistic Information---")
+    print("  - # of keys: " + str(len(seen) + len(differences)))
+    print("  - # of unique keys: " + str(len(seen)))
+    print("  - Note: We want them to be the same.")
+    print("")
 
-    # Gets rid of classes without 6-digit identifications.
-    return (x for x in non_canceled if re.findall(r"\D(\d{6})\D", str(x)))
+    # This code will print the keys that collided in a list.
+    if differences:
+        print(differences)
+        return True
+
+    return False
 
 
-def write_to_db(lst, quarter):
+def group_list(lst):
+    ''' Groups same classes together in a dictionary with the key as the class dept + name
+        and the value being a list of the various sections of this class. I.e: A00, B00, etc.'''
+
+    composite = {}
+
+    for i in lst:
+        key =  i["department"] + " " + i["course number"]
+
+        if key not in composite:
+            composite[key] = {}
+
+        composite[key][i["section"][1]["section 1 number"]] = i
+
+    return composite
+
+
+def write_to_db(dictionary, quarter):
     """ Adds data to firebase."""
 
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
     path = "/quarter/" + quarter + "/"
 
-    # for i in lst:
-    #     master_key = i["key"]
-
-    #     #Figure out how to append data to node.
-    #     for key, value in i.items():
-    #         if key is "seats":
-    #             print key
-    #             print value
-    #             print ("\n")
-    #             database.post(path + str(master_key), master_key, {key:value})
-
-    for i in lst:
-        master_key = i["key"]
-        database.put(path, master_key, i)
+    for key in dictionary:
+        database.put(path, key, dictionary[key])
 
 
 def main():
@@ -562,8 +567,11 @@ def main():
         print("ERROR: Hashing algorithm encountered a collision!")
         sys.exit()
 
+    # Groups by class.
+    grouped = group_list(finished)
+
     # Writes the data to a file.
-    write_to_db(finished, quarter)
+    write_to_db(grouped, quarter)
 
 
 if __name__ == '__main__':
