@@ -30,6 +30,8 @@ SOC_URL = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult
 # URL to get the 3 - 4 letter department codes.
 SUBJECTS_URL = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
 
+CATALOG_URL = 'http://www.ucsd.edu/catalog/courses/'
+
 # Input data besides classes.
 POST_DATA = {'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'contain',
              'schDay': ['M', 'T', 'W', 'R', 'F', 'S'], 'schedOption1': 'true',
@@ -62,12 +64,14 @@ def setup():
     global NUMBER_PAGES
 
     # The subjects to parse.
-    POST_DATA.update({'selectedTerm': get_quarters()[0]})
-    # POST_DATA.update({'selectedTerm': "SA17"})
+    # POST_DATA.update({'selectedTerm': get_quarters()[0]})
+    POST_DATA.update({'selectedTerm': "SA17"})
 
     # The quarter to parse.
     # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': ['BILD']})
+
+    print(len(get_subjects()['selectedSubjects']))
+    POST_DATA.update({'selectedSubjects': ['BILD', 'CSE']})
 
     # The total number of pages to parse.
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
@@ -532,6 +536,22 @@ def group_list(lst):
     return composite
 
 
+def department_group(dict):
+    ''' Groups the various classes by department.'''
+
+    departments = {}
+
+    for i in dict:
+        dept = i.partition(" ")[0]
+
+        if dept not in departments:
+            departments[dept] = {}
+
+        departments[dept][i] = dict[i]
+
+    return departments
+
+
 def write_to_db(dictionary, quarter):
     """ Adds data to firebase."""
 
@@ -570,8 +590,41 @@ def main():
     # Groups by class.
     grouped = group_list(finished)
 
+    # for i in grouped:
+    #     print(i + ". ")
+ 
+    # Groups by department.
+    grouped_by_department = department_group(grouped)
+
+    # for i in grouped_by_department:
+    #     department_url = CATALOG_URL + i + '.html'
+
+    #     classes = grouped_by_department[i].keys()
+
+    #     subject = SESSION.post(department_url)
+    #     soup = BeautifulSoup(subject.content, 'lxml')
+    #     course = soup.findAll(attrs = {'class' : re.compile(r"^(course-list-courses|course-descriptions|course-name)$")})
+
+    #     bool = False
+
+    #     print classes
+
+    #     for i in course:
+    #         if i["class"] == ['course-name']:
+    #             if i.text.partition('.')[0] in classes:
+    #                 bool = True
+    #         if i["class"] == ['course-descriptions']:
+    #             if bool:
+    #                 print(i.text)
+    #                 bool = False
+
+    #         print("\n")
+        # if i in classes:
+
+        
+
     # Writes the data to a file.
-    write_to_db(grouped, quarter)
+    # write_to_db(grouped, quarter)
 
 
 if __name__ == '__main__':
