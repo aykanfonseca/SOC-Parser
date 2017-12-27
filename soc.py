@@ -5,6 +5,7 @@ import itertools
 import re
 import sys
 import time
+from collections import defaultdict
 
 # Pip install packages.
 from bs4 import BeautifulSoup
@@ -65,8 +66,8 @@ def setup():
 
     # The subjects to parse.
     # POST_DATA.update({'selectedTerm': get_quarters()[0]})
-    # POST_DATA.update({'selectedTerm': "FA17"})
-    POST_DATA.update({'selectedTerm': "SA17"})
+    POST_DATA.update({'selectedTerm': "FA17"})
+    # POST_DATA.update({'selectedTerm': "SA17"})
 
     # The quarter to parse.
     POST_DATA.update(get_subjects())
@@ -301,9 +302,7 @@ def parse_list(results):
                     num_loc = 0
 
                 # Assume Blank.
-                section[section_num + " firstname"] = 'Blank'
-                section[section_num + " lastname"] = 'Blank'
-                section[section_num + " middlename"] = 'Blank'
+                section[section_num + " name"] = 'Blank'
                 section[section_num + " seats taken"] = 'Blank'
                 section[section_num + " seats available"] = 'Blank'
 
@@ -318,20 +317,9 @@ def parse_list(results):
 
                     if temp != 0:
                         if 'Staff' in to_parse:
-                            section[section_num + " firstname"] = 'Staff'
+                            section[section_num + " name"] = 'Staff'
                         else:
-                            name = to_parse[:temp - 1].partition(',')
-
-                            # First name & last name.
-                            section[section_num + " firstname"] = name[2][1:].split(' ')[0]
-                            section[section_num + " lastname"] = name[0]
-
-                            # Middle name.
-                            try:
-                                section[section_num +
-                                        " middlename"] = name[2][1:].split(' ')[1]
-                            except IndexError:
-                                pass
+                            section[section_num + " name"] = to_parse[:temp - 1]
 
                     # Adjust String.
                     to_parse = to_parse[temp:]
@@ -348,22 +336,9 @@ def parse_list(results):
 
                 elif 'Unlim' in to_parse:
                     if 'Staff ' in to_parse:
-                        # First, Last, and middle names.
-                        section[section_num + " firstname"] = 'Staff'
+                        section[section_num + " name"] = 'Staff'
                     else:
-                        name = to_parse[:to_parse.find(
-                            'Unlim') - 1].partition(',')
-
-                        # First name & last name.
-                        section[section_num + " firstname"] = name[2].strip().split(' ')[0]
-                        section[section_num + " lastname"] = name[0]
-
-                        # Middle name.
-                        try:
-                            section[section_num +
-                                    " middlename"] = name[2].strip().split(' ')[1]
-                        except IndexError:
-                            pass
+                        section[section_num + " name"] = to_parse[:to_parse.find('Unlim') - 1]
 
                     # Seat information. -1 indicates unlimited seats.
                     seat_tracking = (sys.maxint, sys.maxint)
@@ -372,26 +347,7 @@ def parse_list(results):
 
                 # Name and seat information.
                 elif num_loc != 0:
-                    name = to_parse[:num_loc].strip().partition(',')
-
-                    # First name.
-                    if name[2].strip().split(' ')[0] != '':
-                        section[section_num +" firstname"] = name[2].strip().split(' ')[0]
-                    else:
-                        pass
-
-                    # Last name.
-                    if name[0] != '':
-                        section[section_num + " lastname"] = name[0]
-                    else:
-                        pass
-
-                    # Middle name.
-                    try:
-                        section[section_num +
-                                " middlename"] = name[2].strip().split(' ')[1]
-                    except IndexError:
-                        pass
+                    section[section_num + " name"] = to_parse[:num_loc].strip()
 
                     temp = to_parse[num_loc:].strip().split(' ')
 
@@ -402,31 +358,11 @@ def parse_list(results):
 
                 # Just staff and no seat information.
                 elif to_parse.strip() == 'Staff':
-                    section[section_num + " firstname"] = 'Staff'
+                    section[section_num + " name"] = 'Staff'
 
                 # Name and no seat information. Blanks for both the seat information.
                 elif num_loc == 0 and ',' in to_parse:
-                    name = to_parse.strip().partition(',')
-
-                    # First name.
-                    if name[2].strip().split(' ')[0] != '':
-                        section[section_num +
-                                " firstname"] = name[2].strip().split(' ')[0]
-                    else:
-                        pass
-
-                     # Last name.
-                    if name[0] != '':
-                        section[section_num + " lastname"] = name[0]
-                    else:
-                        pass
-
-                    # Middle name.
-                    try:
-                        section[section_num +
-                                " middlename"] = name[2].strip().split(' ')[1]
-                    except IndexError:
-                        pass
+                    section[section_num + " name"] = to_parse.strip()
 
                 # No name but seat info - think discussion sections without teacher name.
                 elif num_loc == 0 and to_parse:
@@ -435,8 +371,7 @@ def parse_list(results):
 
                         seat_tracking = (int(temp[0]), int(temp[1]))
                         section[section_num + " seats taken"] = int(temp[0])
-                        section[section_num +
-                                " seats available"] = int(temp[1])
+                        section[section_num + " seats available"] = int(temp[1])
 
                     except IndexError:
                         print("ERROR")
@@ -552,12 +487,63 @@ def department_group(dict):
     return departments
 
 
+def prepare_for_db(dict):
+    """ Groups teachers and classes they teach as well as makes some data 
+        (course name, department, etc) first level in our db schema for easy access."""
+
+    grouped_by_teachers = defaultdict(list)
+
+    for i in dict:
+        first_section = dict[i][dict[i].iterkeys().next()]
+        code = first_section['department'] + " " + first_section['course number']
+        title = first_section['course name']
+        key = first_section['key']
+        units = first_section['units']
+        waitlist = 'true'
+        for j in dict[i].keys():
+            for k in dict[i][j]['section'].keys():
+                name = dict[i][j]['section'][k]['section ' + str(k) + ' name']
+
+                if name not in ("", "Staff", "Blank"):
+                    grouped_by_teachers[name.replace('.', "")].append(i)
+
+            first, second = dict[i][j]['seats'][dict[i][j]['seats'].keys()[0]]
+
+            if first < second:
+                waitlist = 'false'
+
+            del dict[i][j]['department']
+            del dict[i][j]['course number']
+            del dict[i][j]['units']
+            del dict[i][j]['course name']
+            del dict[i][j]['key']
+
+        dict[i]['waitlist'] = waitlist
+        dict[i]['code'] = code
+        dict[i]['title'] = title
+        dict[i]['key'] = key
+        dict[i]['units'] = units
+
+    return dict, grouped_by_teachers
+
+
 def write_to_db(dictionary, quarter):
     """ Adds data to firebase."""
 
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
     path = "/quarter/" + quarter + "/"
+
+    for key in dictionary:
+        database.put(path, key, dictionary[key])
+
+
+def write_teachers_to_db(dictionary, quarter):
+    """ Adds data to firebase."""
+
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+
+    path = "/quarter/" + quarter + " teachers" + "/"
 
     for key in dictionary:
         database.put(path, key, dictionary[key])
@@ -591,37 +577,16 @@ def main():
     grouped = group_list(finished)
  
     # Groups by department.
-    grouped_by_department = department_group(grouped)
+    # grouped_by_department = department_group(grouped)
 
-    for i in grouped:
-        first_section = grouped[i][grouped[i].iterkeys().next()]
-        code = first_section['department'] + " " + first_section['course number']
-        title = first_section['course name']
-        key = first_section['key']
-        units = first_section['units']
-        waitlist = 'true'
-        for j in grouped[i].keys():
-            print grouped[i][j]
-            print "\n"
-            first, second = grouped[i][j]['seats'][grouped[i][j]['seats'].keys()[0]]
+    # Groups teachers and classes and prepares the grouped dictionary for upload by modifiying it.
+    grouped, grouped_by_teachers = prepare_for_db(grouped)
 
-            if first < second:
-                waitlist = 'false'
+    # Writes the data to the db.
+    write_to_db(grouped, quarter)
 
-            del grouped[i][j]['department']
-            del grouped[i][j]['course number']
-            del grouped[i][j]['units']
-            del grouped[i][j]['course name']
-            del grouped[i][j]['key']
-
-        grouped[i]['waitlist'] = waitlist
-        grouped[i]['code'] = code
-        grouped[i]['title'] = title
-        grouped[i]['key'] = key
-        grouped[i]['units'] = units
-
-    # Writes the data to a file.
-    # write_to_db(grouped, quarter)
+    # Writes the teacher data to the db.
+    write_teachers_to_db(grouped_by_teachers, quarter)
 
 
 if __name__ == '__main__':
