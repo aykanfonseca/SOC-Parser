@@ -65,12 +65,13 @@ def setup():
 
     # The subjects to parse.
     # POST_DATA.update({'selectedTerm': get_quarters()[0]})
+    # POST_DATA.update({'selectedTerm': "FA17"})
     POST_DATA.update({'selectedTerm': "SA17"})
 
     # The quarter to parse.
-    # POST_DATA.update(get_subjects())
+    POST_DATA.update(get_subjects())
 
-    print(len(get_subjects()['selectedSubjects']))
+    # print(len(get_subjects()['selectedSubjects']))
     POST_DATA.update({'selectedSubjects': ['BILD', 'CSE']})
 
     # The total number of pages to parse.
@@ -163,6 +164,7 @@ def parse_list(results):
     '''Parses the list elements into their readable values to store.'''
 
     parsed = []
+    teacher_class = {}
 
     for lst in results:
         # Components of a class.
@@ -321,9 +323,8 @@ def parse_list(results):
                             name = to_parse[:temp - 1].partition(',')
 
                             # First name & last name.
-                            section[section_num + " firstname"] = name[0]
-                            section[section_num +
-                                    " lastname"] = name[2][1:].split(' ')[0]
+                            section[section_num + " firstname"] = name[2][1:].split(' ')[0]
+                            section[section_num + " lastname"] = name[0]
 
                             # Middle name.
                             try:
@@ -354,9 +355,8 @@ def parse_list(results):
                             'Unlim') - 1].partition(',')
 
                         # First name & last name.
-                        section[section_num + " firstname"] = name[0]
-                        section[section_num +
-                                " lastname"] = name[2].strip().split(' ')[0]
+                        section[section_num + " firstname"] = name[2].strip().split(' ')[0]
+                        section[section_num + " lastname"] = name[0]
 
                         # Middle name.
                         try:
@@ -375,15 +375,14 @@ def parse_list(results):
                     name = to_parse[:num_loc].strip().partition(',')
 
                     # First name.
-                    if name[0] != '':
-                        section[section_num + " firstname"] = name[0]
+                    if name[2].strip().split(' ')[0] != '':
+                        section[section_num +" firstname"] = name[2].strip().split(' ')[0]
                     else:
                         pass
 
                     # Last name.
-                    if name[2].strip().split(' ')[0] != '':
-                        section[section_num +
-                                " lastname"] = name[2].strip().split(' ')[0]
+                    if name[0] != '':
+                        section[section_num + " lastname"] = name[0]
                     else:
                         pass
 
@@ -410,15 +409,15 @@ def parse_list(results):
                     name = to_parse.strip().partition(',')
 
                     # First name.
-                    if name[0] != '':
-                        section[section_num + " firstname"] = name[0]
+                    if name[2].strip().split(' ')[0] != '':
+                        section[section_num +
+                                " firstname"] = name[2].strip().split(' ')[0]
                     else:
                         pass
 
-                    # Last name.
-                    if name[2].strip().split(' ')[0] != '':
-                        section[section_num +
-                                " lastname"] = name[2].strip().split(' ')[0]
+                     # Last name.
+                    if name[0] != '':
+                        section[section_num + " lastname"] = name[0]
                     else:
                         pass
 
@@ -505,6 +504,7 @@ def check_collision(lst):
             seen.add(item["key"])
 
     # This will print the sizes. If collision, they will be different.
+    print("")
     print("---Diagonistic Information---")
     print("  - # of keys: " + str(len(seen) + len(differences)))
     print("  - # of unique keys: " + str(len(seen)))
@@ -589,39 +589,36 @@ def main():
 
     # Groups by class.
     grouped = group_list(finished)
-
-    # for i in grouped:
-    #     print(i + ". ")
  
     # Groups by department.
     grouped_by_department = department_group(grouped)
 
-    # for i in grouped_by_department:
-    #     department_url = CATALOG_URL + i + '.html'
+    for i in grouped:
+        first_section = grouped[i][grouped[i].iterkeys().next()]
+        code = first_section['department'] + " " + first_section['course number']
+        title = first_section['course name']
+        key = first_section['key']
+        units = first_section['units']
+        waitlist = 'true'
+        for j in grouped[i].keys():
+            print grouped[i][j]
+            print "\n"
+            first, second = grouped[i][j]['seats'][grouped[i][j]['seats'].keys()[0]]
 
-    #     classes = grouped_by_department[i].keys()
+            if first < second:
+                waitlist = 'false'
 
-    #     subject = SESSION.post(department_url)
-    #     soup = BeautifulSoup(subject.content, 'lxml')
-    #     course = soup.findAll(attrs = {'class' : re.compile(r"^(course-list-courses|course-descriptions|course-name)$")})
+            del grouped[i][j]['department']
+            del grouped[i][j]['course number']
+            del grouped[i][j]['units']
+            del grouped[i][j]['course name']
+            del grouped[i][j]['key']
 
-    #     bool = False
-
-    #     print classes
-
-    #     for i in course:
-    #         if i["class"] == ['course-name']:
-    #             if i.text.partition('.')[0] in classes:
-    #                 bool = True
-    #         if i["class"] == ['course-descriptions']:
-    #             if bool:
-    #                 print(i.text)
-    #                 bool = False
-
-    #         print("\n")
-        # if i in classes:
-
-        
+        grouped[i]['waitlist'] = waitlist
+        grouped[i]['code'] = code
+        grouped[i]['title'] = title
+        grouped[i]['key'] = key
+        grouped[i]['units'] = units
 
     # Writes the data to a file.
     # write_to_db(grouped, quarter)
