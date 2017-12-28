@@ -489,7 +489,8 @@ def department_group(dict):
 
 def prepare_for_db(dict, teacher_email_mapping):
     """ Groups teachers and classes they teach as well as makes some data 
-        (course name, department, etc) first level in our db schema for easy access."""
+        (course name, department, etc) first level in our db schema for easy access.
+        Also expands restriction codes to full abbreviations."""
 
     # Email and then list of classes.
     grouped_by_teachers = defaultdict(lambda: [set(), set()])
