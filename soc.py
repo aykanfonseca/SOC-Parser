@@ -38,6 +38,19 @@ POST_DATA = {'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'conta
              'schDay': ['M', 'T', 'W', 'R', 'F', 'S'], 'schedOption1': 'true',
              'schedOption2': 'true'}
 
+# Restrictions mappings.
+restrictions = {
+    'D': 'Department Approval Required', 'ER': 'Open to Eleanor Roosevelt College Students Only',
+    'FR': 'Open to Freshmen Only', 'GR': 'Open to Graduate Standing', 'JR': 'Open to Juniors Only',
+    'LD': 'Open to Lower Division Students Only', 'MU': 'Open to Muir College Students Only', 
+    'O': 'Open to Majors Only (Non-majors require department approval)', 'RE': 'Open to Revelle College Students Only',
+    'SI': 'Open to Sixth College Students Only', 'SO': 'Open to Sophomores Only', 'SR': 'Open to Seniors Only',
+    'TH': 'Open to Thurgood Marshall College Students Only', 'UD': 'Open to Upper Division Students Only',
+    'WA': 'Open to Warren College Students Only', 'N': 'Not Open to Majors', 'XFR': 'Not Open to Freshmen',
+    'XGR': 'Not Open to Graduate Standing', 'XJR': 'Not Open to Juniors', 'XLD': 'Not Open to Lower Division Students',
+    'XSO': 'Not Open to Sophomores', 'XSR': 'Not Open to Seniors', 'XUD': 'Not Open to Upper Division Students'
+}
+
 
 def get_quarters():
     '''Gets all the quarters listed in drop down menu.'''
@@ -66,8 +79,8 @@ def setup():
 
     # The subjects to parse.
     # POST_DATA.update({'selectedTerm': get_quarters()[0]})
-    POST_DATA.update({'selectedTerm': "FA17"})
-    # POST_DATA.update({'selectedTerm': "SA17"})
+    # POST_DATA.update({'selectedTerm': "FA17"})
+    POST_DATA.update({'selectedTerm': "SA17"})
 
     # The quarter to parse.
     POST_DATA.update(get_subjects())
@@ -89,6 +102,9 @@ def get_data(url_page_tuple):
     master = []
     total = NUMBER_PAGES
     s = SESSION
+
+    # Teacher name email mappings.
+    teacher_email_map = {}
 
     for url, page in url_page_tuple:
         # Occasionally, the first call will fail.
@@ -129,11 +145,12 @@ def get_data(url_page_tuple):
                     elif 'sectxt' == item_class and 'Cancelled' not in parsed_text:
                         page_list.append('....' + parsed_text)
 
-                        # Check for an email.
+                        # Check for an email add it to mapping.
                         try:
-                            page_list.append(item.find('a')['href'][7:])
+                            for i in item.findAll('a'):
+                                teacher_email_map[i.text.strip()] = i['href'][7:].strip()
                         except TypeError:
-                            page_list.append('No Email')
+                            pass
 
                 except KeyError:
                     pass
@@ -141,7 +158,7 @@ def get_data(url_page_tuple):
         print("Completed Page {} of {}".format(page, total))
         master.append(page_list)
 
-    return master
+    return teacher_email_map, master
 
 
 def format_list(lst):
@@ -155,7 +172,7 @@ def format_list(lst):
         parsed, lambda z: z == ' NXC') if not x)
 
     # Sorts list based on sorting criteria.
-    non_canceled = (x for x in regrouped if len(x) > 2 and 'Cancelled' not in x)
+    non_canceled = (x for x in regrouped if 'Cancelled' not in x)
 
     # Gets rid of classes without 6-digit identifications.
     return (x for x in non_canceled if re.findall(r"\D(\d{6})\D", str(x)))
@@ -170,7 +187,6 @@ def parse_list(results):
     for lst in results:
         # Components of a class.
         header = {}
-        email = set()
         final = {}
         midterm = {}
         seats = {}
@@ -200,12 +216,6 @@ def parse_list(results):
                 if num_loc != len(c_department) + 1:
                     header["restrictions"] = item[len(
                         c_department) + 1: num_loc - 1]
-
-            # TODO: What happens with two emails? Modify getData as well. Change Email to set().
-
-            # Find Email Info.
-            if ('No Email' in item) or ('.edu' in item):
-                email.add(item.strip())
 
             # Finds Section Info.
             if '....' in item:
@@ -458,15 +468,10 @@ def group_list(lst):
     ''' Groups same classes together in a dictionary with the key as the class dept + name
         and the value being a list of the various sections of this class. I.e: A00, B00, etc.'''
 
-    composite = {}
+    composite = defaultdict(dict)
 
     for i in lst:
-        key =  i["department"] + " " + i["course number"]
-
-        if key not in composite:
-            composite[key] = {}
-
-        composite[key][i["section"][1]["section 1 number"]] = i
+        composite[i["department"] + " " + i["course number"]][i["section"][1]["section 1 number"]] = i
 
     return composite
 
@@ -474,24 +479,20 @@ def group_list(lst):
 def department_group(dict):
     ''' Groups the various classes by department.'''
 
-    departments = {}
+    departments = defaultdict(dict)
 
     for i in dict:
-        dept = i.partition(" ")[0]
-
-        if dept not in departments:
-            departments[dept] = {}
-
-        departments[dept][i] = dict[i]
+        departments[i.partition(" ")[0]][i] = dict[i]
 
     return departments
 
 
-def prepare_for_db(dict):
+def prepare_for_db(dict, teacher_email_mapping):
     """ Groups teachers and classes they teach as well as makes some data 
         (course name, department, etc) first level in our db schema for easy access."""
 
-    grouped_by_teachers = defaultdict(list)
+    # Email and then list of classes.
+    grouped_by_teachers = defaultdict(lambda: [set(), set()])
 
     for i in dict:
         first_section = dict[i][dict[i].iterkeys().next()]
@@ -504,8 +505,24 @@ def prepare_for_db(dict):
             for k in dict[i][j]['section'].keys():
                 name = dict[i][j]['section'][k]['section ' + str(k) + ' name']
 
+                dict[i][j]['section'][k]['section '  + str(k) + ' email'] = 'No Email' # Assign no email by default.
+                try:
+                    dict[i][j]['section'][k]['section '  + str(k) + ' email'] = teacher_email_mapping[name]
+                except:
+                    pass
+
                 if name not in ("", "Staff", "Blank"):
-                    grouped_by_teachers[name.replace('.', "")].append(i)
+                    grouped_by_teachers[name.replace('.', "")][0].add(dict[i][j]['section'][k]['section '  + str(k) + ' email'])
+                    grouped_by_teachers[name.replace('.', "")][1].add(i)
+
+
+            temp = ""
+            for val in dict[i][j]['restrictions'].strip().split(" "):
+                if val is not '':
+                    temp += restrictions[val] + ", "
+
+            dict[i][j]['restrictions'] = temp
+            print dict[i][j]['restrictions']
 
             first, second = dict[i][j]['seats'][dict[i][j]['seats'].keys()[0]]
 
@@ -523,6 +540,10 @@ def prepare_for_db(dict):
         dict[i]['title'] = title
         dict[i]['key'] = key
         dict[i]['units'] = units
+
+    for i in grouped_by_teachers:
+        grouped_by_teachers[i][0] = list(grouped_by_teachers[i][0])[0]
+        grouped_by_teachers[i][1] = list(grouped_by_teachers[i][1])
 
     return dict, grouped_by_teachers
 
@@ -560,7 +581,7 @@ def main():
     print("Fetching data for {} from {} pages\n".format(quarter, NUMBER_PAGES))
 
     # Gets the data using urls. Input is url, page number pairings.
-    raw_data = get_data(((SOC_URL + str(x), x) for x in range(1, NUMBER_PAGES + 1)))
+    teacher_email_mapping, raw_data = get_data(((SOC_URL + str(x), x) for x in range(1, NUMBER_PAGES + 1)))
 
     # Format list into proper format.
     formatted_data = format_list(raw_data)
@@ -580,12 +601,14 @@ def main():
     # grouped_by_department = department_group(grouped)
 
     # Groups teachers and classes and prepares the grouped dictionary for upload by modifiying it.
-    grouped, grouped_by_teachers = prepare_for_db(grouped)
+    grouped, grouped_by_teachers = prepare_for_db(grouped, teacher_email_mapping)
+
+    print("Writing information to database.")
 
     # Writes the data to the db.
     write_to_db(grouped, quarter)
 
-    # Writes the teacher data to the db.
+    # # Writes the teacher data to the db.
     write_teachers_to_db(grouped_by_teachers, quarter)
 
 
