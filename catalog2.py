@@ -12,11 +12,6 @@ URL_CATALOG = 'http://www.ucsd.edu/catalog/courses/'
 def get_subjects():
     '''Gets all the subjects listed in select menu. List returned is of all subject codes.'''
 
-    # subject_post = SESSION.get(SUBJECTS_URL)
-    # soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
-
-    # return [i.text for i in soup if len(i.text) <= 4]
-
     subject_post = SESSION.get(SUBJECTS)
     soup = BeautifulSoup(subject_post.content, 'lxml').findAll('a')
 
@@ -36,7 +31,6 @@ def get_data(url_subject_tuple):
 
         # Parse the response into HTML.
         soup = BeautifulSoup(post.content, 'lxml')
-        # course = soup.findAll(attrs = {'class' : re.compile(r"^(course-list-courses|course-descriptions|course-name)$")})
         course = soup.find('div', id="content").findAll('p')
 
         start = 0
@@ -87,8 +81,7 @@ def get_data(url_subject_tuple):
             #     else:
             #         page_list.append(split_left_parens[2].strip()[:-1])
 
-        print("Completed {}").format(subject)
-        print("\n")
+        print("Completed {}\n").format(subject)
         master.append(page_list)
 
     return master
@@ -97,14 +90,14 @@ def get_data(url_subject_tuple):
 def format_list(lst):
     '''Formats the result list into the one we want.'''
 
-   # Flattens list of lists into list.
+    # Flattens list of lists into list.
     flattened = [item for sublist in lst for item in sublist]
 
     # Spliting a list into lists of lists based on a delimiter word.
     grouped = [list(y) for x, y in itertools.groupby(flattened, lambda z: z == ' NXC') if not x]
 
     # Sorts list based on sorting criteria.
-    return [x for x in grouped if len(x) >= 3 and (x != '')]
+    return [x for x in grouped if len(x) >= 3 and x is not '']
 
 
 def main():
@@ -112,8 +105,9 @@ def main():
 
     subject_codes = get_subjects()
 
-    # data = get_data(((URL_CATALOG + x + '.html', x) for x in subject_codes))
-    data = get_data(((URL_CATALOG + x, x[:-5]) for x in subject_codes))
+    url_subject_tuple = ((URL_CATALOG + x, x[:-5]) for x in subject_codes)
+
+    data = get_data(url_subject_tuple)
 
     formatted = format_list(data)
 

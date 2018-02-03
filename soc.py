@@ -51,6 +51,16 @@ restrictions = {
     'XSO': 'Not Open to Sophomores', 'XSR': 'Not Open to Seniors', 'XUD': 'Not Open to Upper Division Students'
 }
 
+DEI = ['HILD 7A', 'HILD 7C', 'HILD 7B', 'LATI 100', 'ANSC 122', 'TDHT 120', 'COMM 155', 'SOCI 138', 'MGT 18', 'ETHN 136', 'ETHN 131', 'ETHN 130', 
+        'CGS 105', 'COMM 10', 'ETHN 112B', 'ETHN 112A', 'TDHT 107', 'TDHT 103', 'ANBI 131', 'TDHT 109', 'ETHN 163G', 'ANSC 131', 'SOCI 127', 'SOCI 126', 
+        'HIUS 113', 'LTEN 186', 'CGS 112', 'HDP 115', 'TDGE 127', 'PHIL 165', 'MUS 17', 'DOC 1', 'ANTH 23', 'ANTH 21', 'ECON 138', 'SOCI 153', 'EDS 117', 
+        'EDS 113', 'EDS 112', 'CGS 2A', 'ETHN 154', 'PHIL 170', 'TDGE 131', 'ANSC 113', 'HIUS 108A', 'HIUS 108B', 'SOCI 139', 'HIUS 136', 'VIS 152D', 
+        'ANTH 43', 'HILD 7GS', 'ANSC 162', 'HITO 136', 'LTEN 169', 'EDS 139', 'EDS 131', 'EDS 130', 'EDS 137', 'EDS 136', 'POLI 100Q', 'COMM 102C', 
+        'COMM 102D', 'EDS 126', 'EDS 125', 'LTEN 171', 'HDP 171', 'POLI 100H', 'SIO 114', 'LTEN 178', 'ETHN 182', 'POLI 100O', 'LIGN 8', 'HIUS 159', 
+        'HIUS 158', 'LIGN 7', 'AAS 10', 'POLI 108', 'RELI 149', 'RELI 148', 'DOC 100D', 'ETHN 20', 'ANSC 145', 'HITO 155', 'HITO 156', 'EDS 117 GS', 
+        'MUS 8GS', 'ETHN 190', 'HIUS 167', 'SOCI 111', 'POLI 105A', 'LTCS 130', 'SOCI 117', 'LTEN 27', 'ETHN 110', 'PHIL 155', 'LTEN 181', 'LTEN 185', 
+        'LTEN 28', 'LTEN 29', 'HIUS 180', 'HIUS 128', 'USP 3', 'USP 129', 'BILD 60', 'ETHN 127', 'ETHN 124', 'MUS 150', 'HDP 135', 'ETHN 3', 'ETHN 2', 
+        'ETHN 1', 'POLI 150A'];
 
 def get_quarters():
     '''Gets all the quarters listed in drop down menu.'''
@@ -79,14 +89,14 @@ def setup():
 
     # The subjects to parse.
     # POST_DATA.update({'selectedTerm': get_quarters()[0]})
-    # POST_DATA.update({'selectedTerm': "FA17"})
-    POST_DATA.update({'selectedTerm': "SA17"})
+    POST_DATA.update({'selectedTerm': "FA17"})
+    # POST_DATA.update({'selectedTerm': "SA17"})
 
     # The quarter to parse.
-    POST_DATA.update(get_subjects())
+    # POST_DATA.update(get_subjects())
+    POST_DATA.update({'selectedSubjects': ['BILD', 'CSE', 'ANTH']})
 
-    # print(len(get_subjects()['selectedSubjects']))
-    POST_DATA.update({'selectedSubjects': ['BILD', 'CSE']})
+    print(len(get_subjects()['selectedSubjects']))
 
     # The total number of pages to parse.
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
@@ -523,7 +533,6 @@ def prepare_for_db(dict, teacher_email_mapping):
                     temp += restrictions[val] + ", "
 
             dict[i][j]['restrictions'] = temp
-            print dict[i][j]['restrictions']
 
             first, second = dict[i][j]['seats'][dict[i][j]['seats'].keys()[0]]
 
@@ -541,6 +550,7 @@ def prepare_for_db(dict, teacher_email_mapping):
         dict[i]['title'] = title
         dict[i]['key'] = key
         dict[i]['units'] = units
+        dict[i]['dei'] = 'true' if code in DEI else 'false'
 
     for i in grouped_by_teachers:
         grouped_by_teachers[i][0] = list(grouped_by_teachers[i][0])[0]
@@ -571,9 +581,19 @@ def write_teachers_to_db(dictionary, quarter):
         database.put(path, key, dictionary[key])
 
 
+def reset_db():
+    """ Deletes data to firebase."""
+
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+
+    database.delete('/quarter', None)
+
+
 def main():
     '''The main function.'''
     print(sys.version)
+
+    print get_subjects()
 
     # Update POST_DATA and sets NUMBER_PAGES to parse.
     quarter = setup()
@@ -604,12 +624,16 @@ def main():
     # Groups teachers and classes and prepares the grouped dictionary for upload by modifiying it.
     grouped, grouped_by_teachers = prepare_for_db(grouped, teacher_email_mapping)
 
+    # print("Wiping information in database.")
+
+    # reset_db()
+
     print("Writing information to database.")
 
     # Writes the data to the db.
     write_to_db(grouped, quarter)
 
-    # # Writes the teacher data to the db.
+    # Writes the teacher data to the db.
     write_teachers_to_db(grouped_by_teachers, quarter)
 
 
