@@ -96,8 +96,6 @@ def setup():
     # POST_DATA.update(get_subjects())
     POST_DATA.update({'selectedSubjects': ['BILD', 'CSE', 'ANTH']})
 
-    print(len(get_subjects()['selectedSubjects']))
-
     # The total number of pages to parse.
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
     NUMBER_PAGES = int(re.search(r"of&nbsp;([0-9]*)", post).group(1))
@@ -562,6 +560,8 @@ def prepare_for_db(dict, teacher_email_mapping):
 def write_to_db(dictionary, quarter):
     """ Adds data to firebase."""
 
+    print("Writing information to database.")
+
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
     path = "/quarter/" + quarter + "/"
@@ -584,6 +584,8 @@ def write_teachers_to_db(dictionary, quarter):
 def reset_db():
     """ Deletes data to firebase."""
 
+    print("Wiping information in database.")
+
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
     database.delete('/quarter', None)
@@ -592,8 +594,6 @@ def reset_db():
 def main():
     '''The main function.'''
     print(sys.version)
-
-    print get_subjects()
 
     # Update POST_DATA and sets NUMBER_PAGES to parse.
     quarter = setup()
@@ -624,11 +624,7 @@ def main():
     # Groups teachers and classes and prepares the grouped dictionary for upload by modifiying it.
     grouped, grouped_by_teachers = prepare_for_db(grouped, teacher_email_mapping)
 
-    # print("Wiping information in database.")
-
     # reset_db()
-
-    print("Writing information to database.")
 
     # Writes the data to the db.
     write_to_db(grouped, quarter)
