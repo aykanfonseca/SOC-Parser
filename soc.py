@@ -94,7 +94,7 @@ def setup():
 
     # The quarter to parse.
     # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': ['BILD', 'CSE', 'ANTH']})
+    POST_DATA.update({'selectedSubjects': ['CSE']})
 
     # The total number of pages to parse.
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
@@ -591,9 +591,31 @@ def reset_db():
     database.delete('/quarter', None)
 
 
+def load_fake_data_into_db():
+    """ Adds fake data to firebase for testing and implementing new functionality in the front end."""
+
+    print("Writing fake information to database.")
+
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+
+    path = "/quarter/Spring 2020/"
+
+    database.put(path, "CSE 1000", {
+        "A00": {'restrictions':'None, '},
+        'code': 'CSE 1000',
+        'dei': 'false',
+        'key': '013123',
+        'title': 'Fake Computer Science Node',
+        'units': '3 Units',
+        'waitlist': 'true',
+        'description':'This course will cover software engineering topics associated with large systems development such as requirements and specifications, testing and maintenance, and design. Specific attention will be given to development tools and automated support environments.',
+        'prerequisites': 'CSE 110; restricted to students with junior or senior standing. Graduate students will be allowed as space permits.'
+    })
+
+
 def main():
     '''The main function.'''
-    print(sys.version)
+    # print(sys.version)
 
     # Update POST_DATA and sets NUMBER_PAGES to parse.
     quarter = setup()
@@ -625,6 +647,7 @@ def main():
     grouped, grouped_by_teachers = prepare_for_db(grouped, teacher_email_mapping)
 
     # reset_db()
+    # load_fake_data_into_db()
 
     # Writes the data to the db.
     write_to_db(grouped, quarter)
