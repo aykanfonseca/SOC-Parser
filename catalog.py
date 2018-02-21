@@ -1,135 +1,475 @@
-from bs4 import BeautifulSoup
-import requests, time, multiprocessing
+'''Python program to scrape UC San Diego's Course Catalog. Created by Aykan Fonseca.'''
+
+# Bulitins
 import re
 import itertools
 
-# Starts the timer.
-start = time.time()
+# Pip installed packages.
+from firebase import firebase
+from bs4 import BeautifulSoup
+import requests
 
-URL_SubjectCodes = 'http://ucsd.edu/catalog/front/courses.html'
-URL_Catalog = 'http://www.ucsd.edu/catalog/courses/'
+# Global Variables.
+SESSION = requests.Session()
+SUBJECTS_URL = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/subject-codes.html'
+URL_CATALOG = 'http://www.ucsd.edu/catalog/courses/'
+URL_CATALOG2 = 'http://www.ucsd.edu/catalog/front/courses.html'
 
-# Gets all the subjects listed in select menu.
-def getSubjects():
-    subjectPost = s.post(URL_SubjectCodes)
-    subjectSoup = BeautifulSoup(subjectPost.content, 'lxml')
 
-    # Gets all the subject Codes for post request
-    subjects = []
-    for x in subjectSoup.findAll('a', href=True):
-        if '../courses/' in x['href']:
-            subjects.append(x['href'].partition('/')[2].partition('/')[2].partition('.')[0])
+def get_subjects():
+    '''Gets all the subjects.'''
 
-    return sorted(subjects)
+    subject_post = SESSION.get(SUBJECTS_URL)
+    soup = BeautifulSoup(subject_post.content, 'lxml').findAll('td')
 
-# Formats the list and separates according to class.
-def formatList(ls):
+    subject_post2 = SESSION.get(URL_CATALOG2)
+    soup2 = BeautifulSoup(subject_post2.content, 'lxml').findAll('a')
+
+    subjects = [i.text for i in soup if i.text.isupper()]
+    subjects2 = [i['href'][11:-5] for i in soup2 if i.text == "courses"]
+
+    return subjects + list(set(subjects2) - set(subjects))
+
+
+def get_data(url_subject_tuple):
+    '''Retrieves the data.'''
+
+    master = []
+    s = SESSION
+
+    for url, subject in url_subject_tuple:
+        # Occasionally, the first call will fail.
+        try:
+            post = s.get(url, stream=True)
+        except requests.exceptions.HTTPError:
+            post = s.get(url, stream=True)
+        except requests.exceptions.ConnectionError:
+            post = s.get(url, stream=True)
+
+        if post.status_code != 404:
+            # Parse the response into HTML.
+            soup = BeautifulSoup(post.content, 'lxml')
+
+            course = soup.findAll('p')
+            start = 0
+            end = 0
+
+            # Filters out useless stuff at beginning.
+            for index, item in enumerate(course):
+                try:
+                    if item['class'] == ["course-name"] and start == 0:
+                        start = index
+                    if item['class'] == ["course-list-courses"] or item['class'] == ["course-descriptions"]:
+                        end = index
+                except KeyError:
+                    pass
+
+            # This will contain all the classes for a single page.
+            page_list = []
+
+            for i in course[start:end+1]:
+                try:
+                    if i['class'] in (['course-name'], ['course-list-courses']):
+                        page_list.append(' NXC')
+                except KeyError:
+                    pass
+                    
+                parsed_text = ' '.join(i.text.split()).encode('utf-8')
+
+                # Linguistics exception.
+                if subject == 'LING' and 'Linguistics' in parsed_text and parsed_text.count(')') == 2 and parsed_text.count('(') == 2 and re.findall(r'.+\((\w+)\)', parsed_text):
+                    starter = parsed_text.find('(')
+                    ender = parsed_text.find(')')
+                    parsed_text = parsed_text[starter + 1: ender] + " " + parsed_text[ender+1:].strip()
+
+                # Graduate Sociology exception.
+                if 'Soc/G' in parsed_text and subject == "SOC":
+                    parsed_text = "SOCG " + " ".join(parsed_text.split(" ")[1:])
+
+                # Classics exception.
+                if subject == 'CLAS' and "Classics " in parsed_text:
+                    parsed_text = "CLAS " + " ".join(parsed_text.split(" ")[1:])
+
+                # Jewish Studies exception. 
+                if subject == 'JUDA' and '(' in parsed_text and ')' in parsed_text and "Jewish Studies " in parsed_text:
+                    parsed_text = "JUDA " + " ".join(parsed_text.split(" ")[2:])
+
+                # Revelle classes exception. 
+                if subject == "REV" and "Revelle " in parsed_text and '(' in parsed_text and ')' in parsed_text and 'Prerequisites' not in parsed_text:
+                    parsed_text = "REV " + " ".join(parsed_text.split(" ")[1:])
+
+                # Clinical Psychology exception.
+                try:
+                    if subject == "CLIN" and 'Prerequisites' not in parsed_text and i['class'] == ['course-name']:
+                        parsed_text = "CLIN " + parsed_text[re.search("\d", parsed_text).start():]
+                except:
+                    pass
+
+                # Bioengineering exception.
+                if 'BENG/BIMM/CSE' in parsed_text:
+                    parsed_text = "BENG " + " ".join(parsed_text.split(" ")[1:])
+
+                # Japanese exception.
+                if subject == "JAPN" and 'Prerequisites' not in parsed_text and i['class'] == ['course-name'] and '-' in parsed_text:
+                    parsed_text = "JAPN " + parsed_text
+
+                page_list.append(parsed_text)
+            
+            print("Completed {}\n").format(subject)
+            master.append(page_list)
+
+    return master
+
+
+def format_data(lst):
+    '''Formats the result list into the one we want.'''
+
     # Flattens list of lists into list.
-    Catalog = [item for sublist in ls for item in sublist]
+    flattened = [item for sublist in lst for item in sublist]
 
     # Spliting a list into lists of lists based on a delimiter word.
-    Catalog = [list(y) for x, y in itertools.groupby(Catalog, lambda z: z == ' NXC') if not x]
+    grouped = [list(y) for x, y in itertools.groupby(flattened, lambda z: z == ' NXC') if not x]
 
-    # Sorts list based on sorting criteria.
-    return [x for x in Catalog if len(x) >= 3 and (x != '')]
+    formatted = []
+    problem = []
+    for i in grouped:
+        course = [text for text in i if text != ""]
 
-# Parses the page
-def parsePage(subject):
-    # The parsing of the page.
-    subjectPage = s.post(''.join([URL_Catalog, subject, '.html']))
-    soup = BeautifulSoup(subjectPage.content, 'lxml')
-    course = soup.findAll(attrs = {'class' : re.compile(r"^(course-list-courses|course-descriptions|course-name)$")})
+        if len(course) == 2:
+            formatted.append(course)
+        elif len(course) != 2 and len(course) > 0:
+            problem.append(course)
 
-    Catalog = []
-    # Reformats the text and adds a 'new class' to indicate a new class
-    for item in course:
-        if item.get('class') in (['course-name'], ['course-list-courses']):
-            Catalog.append(' NXC')
+    return formatted, problem
 
-        parsedText = ' '.join(item.text.split()).replace(u'\u2014', '-').replace(u"\u2018", "'").replace(u"\u2019", "'").replace(u'\u201c', '"').replace(u'\u201d', '"').replace(u'\u2013', '-')
 
-        parsedText = str(parsedText.replace(u'\ufeff', "").replace(u'\u04e7', 'o')
+def handle_problem_data_partially(formatted_data, problem_data):
+    case_one_problem_data = [] # We accidently picked up more stuff.
+    case_two_problem_data = [] # We only have the DEPT + CODE + TITLE basically.
 
-        # Pre-Exception formatting.
-        # if (parsedText == '10A-B-C. First-Year Japanese') or (parsedText == '20A-B-C. Second-Year Japanese') or (parsedText == '130A-B-C. Third-Year Japanese') or (parsedText == '140A-B-C. Fourth-Year Japanese') or (parsedText == '150A-B-C. Advanced Japanese'):
-        #     parsedText = 'JAPN '+ parsedText
+    # Filter data appropriately.
+    for i in problem_data:
+        if len(i) > 1:
+            case_one_problem_data.append(i)
+        else:
+            case_two_problem_data.append(i)
 
-        # Linguistics Exception.
-        # if any(substring in parsedText for substring in ['Linguistics/American Sign Language (', 'Linguistics/Arabic (', 'Linguistics/French (', 'Linguistics/German (', 'Linguistics/Heritage Languages (', 'Linguistics/Hindi (', 'Linguistics/Italian (', 'Linguistics/Portuguese (', 'Linguistics/Spanish (', 'Linguistics (LIDS']):
-        #     parsedText = parsedText.partition('(')[2].replace(') ', ' ')
+    # Disregard everything after the second portion and include it in the okay data.
+    for i in case_one_problem_data:
+        formatted_data.append(i[:2])
 
-        # # MUS 192 Exception.
-        # if ('192. Senior Seminar in Music (1)' == parsedText):
-        #     continue
+    # Remove duplicates. Have to do case by case because some descriptions are better.
+    final = {}
+    for i in formatted_data:
+        if i[0] not in final:
+            final[i[0]] = i
+        else: # Handle specific descriptions where they are better.
+            if 'MGTF 410' in i[0]:
+                final[i[0]] = i
+            if 'MGTF 432' in i[0]:
+                final[i[0]] = i
+            if 'HISC 165' in i[0]:
+                final[i[0]] = i
+            if 'HISC 166/266' in i[0]:
+                final[i[0]] = i
+            if 'HISC 167/267' in i[0]:
+                final[i[0]] = i
+            if 'HISC 180/280' in i[0]:
+                final[i[0]] = i
+            if 'PHIL 280' in i[0]:
+                final[i[0]] = i
+            if 'TDHT 111' in i[0]:
+                final[i[0]] = i
+            if 'LTEN 181' in i[0]:
+                final[i[0]] = i
+            if 'SIOB 286' in i[0]:
+                final[i[0]] = i
+            if 'SIOC 210' in i[0]:
+                final[i[0]] = i
+            if 'SIOC 217A' in i[0]:
+                final[i[0]] = i
+            if 'SIOC 217B' in i[0]:
+                final[i[0]] = i
+            if 'SIOC 217C' in i[0]:
+                final[i[0]] = i
+            if 'SIOC 217D' in i[0]:
+                final[i[0]] = i
+            if 'SIOG 252A' in i[0]:
+                final[i[0]] = i
+            if 'SIOG 260' in i[0]:
+                final[i[0]] = i
+            if 'TWS 21' in i[0]:
+                final[i[0]] = i
 
-        # # Japanese Exception for duplicated listed courses.
-        # if ((parsedText == 'LTEA 130. Earlier Japanese Literature in Translation') or (parsedText == 'LTEA 132. Later Japanese Literature in Translation')) and (subject == 'JAPN'):
-        #     print ("Completed {}").format(subject)
-        #     return Catalog
 
-        # if ' Prerequisites:' in parsedText:
-        #     prequisites = parsedText.partition(" Prerequisites:")[2].strip()
-        #     parsedText = parsedText.partition(" Prerequisites")[0]
-        # else:
-        #     prequisites = "No Prequisites"
+    return case_two_problem_data, final
 
-        # Catalog.append(parsedText)
 
-        # if item.get('class') not in (['course-name'], ['course-list-courses']):
-        #     Catalog.append(prequisites.capitalize())
+def split_description_for_prerequisites(lst):
+    ''' Split prereq into separate selection. So list format for each is: [DEPT CODE TITLE, DESCRIPTION, PREREQS].'''
 
-        # Post-Exception formatting.
-        # if (parsedText == 'BILD 26. Human Physiology (4)'):
-        #     Catalog.append('Introduction to the elements of human physiology and the functioning of the various organ systems. The course presents a broad, yet detailed, analysis of human physiology, with particular emphasis toward understanding disease processes. This course is designed for nonbiology students and does not satisfy a lower-division requirement for any biology major. Open to nonbiology majors only. Exclude the following major codes: BI28, BI29, BI30, BI31, BI32, BI33, BI34, BI35, BI36. Note: Students may not receive credit for BILD 26 after receiving credit for BIPN 100.')
-        #     Catalog.append('No Prequisites')
+    new_final = []
 
-    # print("Completed {}").format(subject)
+    for i in lst:
+        if "Prerequisites: " in i[1]: # Has prerequisites.
+            split = i[1].split("Prerequisites: ")
+            part = [i[0].strip(), split[0].strip(), split[1].strip()]
+        else: # Doesn't.
+            part = [i[0].strip(), i[1].strip(), "None."]
+            
+        new_final.append(part)
 
-    return Catalog
+    return new_final
 
-# The main program excluding timing.
+
+def convert_to_dictionary_final(lst):
+    dictionary_form = {}
+    for i in lst:
+        temp = i[0].partition('.')
+        temp2 = temp[2].partition('(')
+        
+        dept_code = temp[0]
+        title = temp2[0].strip()
+        units = temp2[2].partition(')')[0].strip()
+
+        dictionary_form[dept_code.strip()] = {'title': title, 'units': units, 'description': i[1], 'prerequisites': i[2]}
+
+    return dictionary_form
+
+
+def reset_db():
+    """ Deletes data to firebase."""
+
+    print("Wiping information in database.")
+
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+
+    database.delete('/catalog', None)
+
+
+def write_to_db(dictionary):
+    """ Adds data to firebase."""
+
+    print("Writing information to database.")
+
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+
+    path = "catalog"
+
+    count = 0
+    for key in dictionary:
+        count += 1
+
+        if count % 100 == 0:
+            print str(count / len(dictionary)) + " percent done."
+
+        database.put(path, key, dictionary[key])
+
+
 def main():
+    reset_db()
+
     global s
 
     s = requests.Session()
-    subjectCodes = getSubjects()
+    subjects = get_subjects()
 
-    # Parses and formats into: Full name of class, class description, class prequisites. This is done for each class.
-    parsed = [parsePage(subjectCodes[i]) for i in range(len(subjectCodes))]
-    return formatList(parsed)
+    # Forms pairs of (URL, subject code).
+    url_subject_tuples = ((URL_CATALOG + x + ".html", x) for x in subjects)
 
-#removes duplicates, preserves order, and keeps the first one you find.
-def unique(ls):
-    found = set()
-    for item in ls:
-        if item[0] not in found:
-            yield item[0]
-            found.add(item[0])
+    raw_data = get_data(url_subject_tuples)
+
+    formatted_data, problem_data = format_data(raw_data)
+
+    case_two_problem_data, final = handle_problem_data_partially(formatted_data, problem_data)
+
+    # Convert final 'dictionary' back to list.
+    converted = [val for key, val in final.items()]
+
+    # Split descriptions for each into description and prereq portions.
+    new_final = split_description_for_prerequisites(converted)
+
+    # lister = {}
+    # lister2 = {}
+    cleaned_final = []
+
+    errors = []
+    for i in new_final:
+        # Checks if the department code + Course numnber has only alphabetic or numbers or spaces. 
+        if i[0].partition('.')[0].replace(' ', '').isalnum():
+            if 'or' in i[0].partition('.')[0]:
+                print i[0].partition('.')[0]
+            else:
+                cleaned_final.append(i)
+        else:
+            errors.append(i[0].partition('.')[0]) 
+
+    # for i in new_final:
+        # text = i[0][:i[0].find('.')]
+        # if '-' in text:
+        #     lister[text] = i
+        # if '/' in text:
+        #     lister2[text] = i
+        # else:
+        #     cleaned_final.append(i)
+
+    finalized = convert_to_dictionary_final(cleaned_final)
+
+    print len(finalized)
+    # for key, value in lister.items():
+    #     split_by_dash = key.split('-')
+
+    #     # Ensure everything has two spaces: like: CSE 132 A instead of CSE 132A.
+    #     if split_by_dash[0].count(' ') < 2:
+    #         index_of_last_digit = re.match('.+([0-9])[^0-9]*$', split_by_dash[0]).start(1)
+
+    #         dept_code = split_by_dash[0][:index_of_last_digit + 1]
+    #         letter = split_by_dash[0][index_of_last_digit + 1:]
+
+    #         # Only numbers no alphabets. Ex. "TWS 21".
+    #         if letter is '':
+    #             split_no_letters_single_space = dept_code.split(' ')
+
+    #             title = value[0].partition('.')[2].partition('(')[0].strip()
+    #             units = value[0].partition('.')[2].partition('(')[2].partition(')')[0].split('-')
+
+    #             # Check if all values in the units list are the same or not.
+    #             if units.count(units[0]) == len(units):
+    #                 unit = units[0]
+    #             else:
+    #                 print("1.) ERROR!")
+
+    #             if dept_code not in finalized:
+    #                 if (len(dept_code) > 9):
+    #                     print "(A)"
+    #                     print dept_code
+    #                     print "\n"
+
+    #                 finalized[dept_code] = {'title': title, 'units': units, 'description': value[1], 'prerequisites': value[2]}
+    #             else:
+    #                 if dept_code == "HILD 10":
+    #                     pass
+    #                 else:
+    #                     print(dept_code)
+    #                     print finalized[dept_code]
+    #                     print("2.) ERROR!")
+    #                     print("\n")
+
+    #             for j in split_by_dash[1:]:
+    #                 dept_code = split_no_letters_single_space[0] + " " + j
+
+    #                 if dept_code not in finalized:
+    #                     if (len(dept_code) > 9):
+    #                         print "(B)"
+    #                         print dept_code
+    #                         print "\n"
+
+    #                     finalized[dept_code] = {'title': title, 'units': units, 'description': value[1], 'prerequisites': value[2]}
+    #                 else:
+    #                     if dept_code == 'HILD 11' or dept_code == 'HILD 12':
+    #                         pass
+    #                     else:
+    #                         print(dept_code)
+    #                         print finalized[dept_code]
+    #                         print("3.) ERROR!")
+    #                         print("\n")
+
+    #         # Has letters at the end. Ex. "MATH 20A".
+    #         else:
+    #             title = value[0].partition('.')[2].partition('(')[0].strip()
+    #             units = value[0].partition('.')[2].partition('(')[2].partition(')')[0].split('-')
+
+    #             # Check if all values in the units list are the same or not.
+    #             if units.count(units[0]) == len(units):
+    #                 unit = units[0]
+    #             else:
+    #                 print("4.) ERROR!")
+
+    #             if dept_code + letter not in finalized:
+    #                 if (len(dept_code + letter) > 9):
+    #                     print "(C)"
+    #                     print dept_code
+    #                     print "\n"
+
+    #                 finalized[dept_code + letter] = {'title': title, 'units': units, 'description': value[1], 'prerequisites': value[2]}
+    #             else:
+    #                 if dept_code + letter == "HILD 7A":
+    #                     pass
+    #                 else:
+    #                     print(dept_code + letter)
+    #                     print finalized[dept_code + letter]
+    #                     print("5.) ERROR!")
+    #                     print("\n")
+
+    #             for j in split_by_dash[1:]:
+    #                 dept_code = dept_code + j
+
+    #                 if dept_code not in finalized:
+    #                     if (len(dept_code) > 9):
+    #                         print "(D)"
+    #                         print dept_code
+    #                         print "\n"
+
+    #                     finalized[dept_code] = {'title': title, 'units': units, 'description': value[1], 'prerequisites': value[2]}
+    #                 else:
+    #                     if dept_code == "HILD 7B":
+    #                         pass
+    #                     else:
+    #                         print(dept_code)
+    #                         print finalized[dept_code]
+    #                         print("6.) ERROR!")
+    #                         print("\n")
+            
+    #     else:
+    #         dept_code_letter_triplet = split_by_dash[0].split(' ')
+    #         formatted_correctly = dept_code_letter_triplet[0] + " " + dept_code_letter_triplet[1] + dept_code_letter_triplet[2]
+
+
+    #         title = value[0].partition('.')[2].rpartition('(')[0].strip()
+    #         units = value[0].rpartition('(')[2].partition(')')[0].split('-')
+
+    #         # Check all units are identical.
+    #         if len(set(units)) <= 1:
+    #             units = units[0]
+    #         else:
+    #             print(units)
+    #             print("7.) ERROR!")
+    #             print("\n")
+
+    #         if formatted_correctly not in finalized:
+    #             finalized[formatted_correctly] = {'title': title, 'units': units, 'description': value[1], 'prerequisites': value[2]}
+    #         else:
+    #             print(formatted_correctly)
+    #             print("8.) ERROR!")
+    #             print("\n")
+
+    #         for j in split_by_dash[1:]:
+    #             dept_code =  dept_code_letter_triplet[0] + " " + dept_code_letter_triplet[1] + j
+
+    #             if dept_code not in finalized:
+    #                 if (len(dept_code) > 9):
+    #                     print "(E)"
+    #                     print dept_code
+    #                     print "\n"
+
+    #                 finalized[dept_code] = {'title': title, 'units': units, 'description': value[1], 'prerequisites': value[2]}
+    #             else:
+    #                 print(dept_code)
+    #                 print("9.) ERROR!")
+    #                 print("\n")
+
+    # with open('a.txt', 'w+') as file:
+    #     for i in finalized:
+    #         file.write(str(i))
+    #         file.write("\n")
+
+    write_to_db(finalized)
+
+    # for key, value in lister2.items():
+    #     print key
+    #     print "\n"
+
+
 
 if __name__ == '__main__':
-    parsed = main()
-
-    # DUPLICATE FINDER TOOL
-    count = 0
-    found = set()
-    for item in parsed:
-        if item[0] not in found:
-            found.add(item[0])
-        else:
-            print item
-            print '\n'
-            count += 1
-
-    print count
-
-    results = unique(parsed)
-
-    for item in results:
-        print(item)
-        print('\n')
-
-    # Ends the timer.
-    end = time.time()
-
-    # Prints how long it took for program to run.
-    print('\n' + str(end - start))
+    main()

@@ -236,19 +236,19 @@ def parse_list(results):
                 num_loc = number_regex.search(item).start()
 
                 to_parse = item.split(' ')
-                section_num = "section " + str(counter)
+                # section_num = "section " + str(counter)
 
                 # ID.
                 if num_loc == 4:
-                    section[section_num + " id"] = item[4:10].strip()
+                    section["id"] = item[4:10].strip()
                     to_parse = to_parse[1:]
                 else:
-                    section[section_num + " id"] = 'Blank'
+                    section["id"] = 'Blank'
                     to_parse[0] = to_parse[0][4:]
 
                 # Meeting type and Section.
-                section[section_num + " meeting type"] = to_parse[0]
-                section[section_num + " number"] = to_parse[1]
+                section["meeting type"] = to_parse[0]
+                section["number"] = to_parse[1]
 
                 # Readjust the list.
                 to_parse = to_parse[2:]
@@ -256,19 +256,19 @@ def parse_list(results):
                 # Days: so MWF would have separate entries, M, W, F. Max = 5, assumed Blank.
                 if to_parse[0] != 'TBA':
                     temp = days_regex.findall(to_parse[0])
-                    section[section_num + " day 1"] = 'Blank'
-                    section[section_num + " day 2"] = 'Blank'
-                    section[section_num + " day 3"] = 'Blank'
-                    section[section_num + " day 4"] = 'Blank'
-                    section[section_num + " day 5"] = 'Blank'
+                    section["day 1"] = 'Blank'
+                    section["day 2"] = 'Blank'
+                    section["day 3"] = 'Blank'
+                    section["day 4"] = 'Blank'
+                    section["day 5"] = 'Blank'
 
                     # Changes whatever is available.
                     try:
-                        section[section_num + " day 1"] = temp[0]
-                        section[section_num + " day 2"] = temp[1]
-                        section[section_num + " day 3"] = temp[2]
-                        section[section_num + " day 4"] = temp[3]
-                        section[section_num + " day 5"] = temp[4]
+                        section["day 1"] = temp[0]
+                        section["day 2"] = temp[1]
+                        section["day 3"] = temp[2]
+                        section["day 4"] = temp[3]
+                        section["day 5"] = temp[4]
                     except IndexError:
                         pass
 
@@ -277,21 +277,19 @@ def parse_list(results):
                     pass
 
                 # The times. Assume TBA.
-                section[section_num + " start time"] = "TBA"
-                section[section_num + " end time"] = "TBA"
-                section[section_num + " start time am"] = True
-                section[section_num + " end time am"] = True
+                section["start time"] = "TBA"
+                section["end time"] = "TBA"
+                section["start time am"] = True
+                section["end time am"] = True
 
                 if to_parse[0] != 'TBA':
                     time_tuples = to_parse[0].partition('-')[::2]
 
-                    section[section_num + " start time"] = time_tuples[0][:-1]
-                    section[section_num + " end time"] = time_tuples[1][:-1]
+                    section["start time"] = time_tuples[0][:-1]
+                    section["end time"] = time_tuples[1][:-1]
 
-                    section[section_num +
-                            " start time am"] = False if time_tuples[0][-1] != "a" else True
-                    section[section_num +
-                            " end time am"] = False if time_tuples[1][-1] != "a" else True
+                    section["start time am"] = False if time_tuples[0][-1] != "a" else True
+                    section["end time am"] = False if time_tuples[1][-1] != "a" else True
 
                     to_parse = to_parse[1:]
 
@@ -300,15 +298,14 @@ def parse_list(results):
                     to_parse = to_parse[1:]
 
                 # The Building. Assume Blank.
-                section[section_num + " building"] = 'Blank'
+                section["building"] = 'Blank'
 
                 if to_parse[0] != 'TBA':
-                    section[section_num + " building"] = to_parse[0]
+                    section["building"] = to_parse[0]
                     to_parse = to_parse[1:]
 
                 # The Room.
-                section[section_num +
-                        " room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
+                section["room"] = to_parse[0] if to_parse[0] != 'TBA' else 'Blank'
 
                 # Readjust the list.
                 to_parse = ' '.join(to_parse[1:])
@@ -320,9 +317,9 @@ def parse_list(results):
                     num_loc = 0
 
                 # Assume Blank.
-                section[section_num + " name"] = 'Blank'
-                section[section_num + " seats taken"] = 'Blank'
-                section[section_num + " seats available"] = 'Blank'
+                section["name"] = 'Blank'
+                section["seats taken"] = 'Blank'
+                section["seats available"] = 'Blank'
 
                 # Note for seat enrollments:
                 # A. WAITLIST FULL, the seats taken is the amount over plus the seats available.
@@ -335,9 +332,9 @@ def parse_list(results):
 
                     if temp != 0:
                         if 'Staff' in to_parse:
-                            section[section_num + " name"] = 'Staff'
+                            section["name"] = 'Staff'
                         else:
-                            section[section_num + " name"] = to_parse[:temp - 1]
+                            section["name"] = to_parse[:temp - 1]
 
                     # Adjust String.
                     to_parse = to_parse[temp:]
@@ -348,39 +345,38 @@ def parse_list(results):
 
                     # Seat Information: Amount of seats taken (WAITLIST Full).
                     seat_tracking = (taken, int(to_parse[(to_parse.find(')') + 2):]))
-                    section[section_num + " seats taken"] = taken
-                    section[section_num +
-                            " seats available"] = int(to_parse[(to_parse.find(')') + 2):])
+                    section["seats taken"] = taken
+                    section["seats available"] = int(to_parse[(to_parse.find(')') + 2):])
 
                 elif 'Unlim' in to_parse:
                     if 'Staff ' in to_parse:
-                        section[section_num + " name"] = 'Staff'
+                        section["name"] = 'Staff'
                     else:
-                        section[section_num + " name"] = to_parse[:to_parse.find('Unlim') - 1]
+                        section["name"] = to_parse[:to_parse.find('Unlim') - 1]
 
                     # Seat information. -1 indicates unlimited seats.
                     seat_tracking = (sys.maxint, sys.maxint)
-                    section[section_num + " seats taken"] = sys.maxint
-                    section[section_num + " seats available"] = sys.maxint
+                    section["seats taken"] = sys.maxint
+                    section["seats available"] = sys.maxint
 
                 # Name and seat information.
                 elif num_loc != 0:
-                    section[section_num + " name"] = to_parse[:num_loc].strip()
+                    section["name"] = to_parse[:num_loc].strip()
 
                     temp = to_parse[num_loc:].strip().split(' ')
 
                     # Amount of seats taken (has seats left over.
                     seat_tracking = (int(temp[0]), int(temp[1]))
-                    section[section_num + " seats taken"] = int(temp[0])
-                    section[section_num + " seats available"] = int(temp[1])
+                    section["seats taken"] = int(temp[0])
+                    section["seats available"] = int(temp[1])
 
                 # Just staff and no seat information.
                 elif to_parse.strip() == 'Staff':
-                    section[section_num + " name"] = 'Staff'
+                    section["name"] = 'Staff'
 
                 # Name and no seat information. Blanks for both the seat information.
                 elif num_loc == 0 and ',' in to_parse:
-                    section[section_num + " name"] = to_parse.strip()
+                    section["name"] = to_parse.strip()
 
                 # No name but seat info - think discussion sections without teacher name.
                 elif num_loc == 0 and to_parse:
@@ -388,8 +384,8 @@ def parse_list(results):
                         temp = to_parse.split(' ')
 
                         seat_tracking = (int(temp[0]), int(temp[1]))
-                        section[section_num + " seats taken"] = int(temp[0])
-                        section[section_num + " seats available"] = int(temp[1])
+                        section["seats taken"] = int(temp[0])
+                        section["seats available"] = int(temp[1])
 
                     except IndexError:
                         print("ERROR")
@@ -403,8 +399,17 @@ def parse_list(results):
                 exam = item.split(' ')
                 exam_info = {}
 
-                exam_info["date"] = exam[1]
-                exam_info["day"] = exam[2]
+                # Handle Timing, day, seats, and location. NOTE: section is really a substitute key for the day of the final.
+                exam_info["number"] = exam[1]
+                exam_info["day 1"] = exam[2]
+                exam_info["building"] = 'Blank'
+                exam_info["room"] = 'Blank'
+                exam_info["seats taken"] = 'Blank'
+                exam_info["seats available"] = 'Blank'
+
+                if (len(exam) == 6):
+                    exam_info["building"] = exam[4]
+                    exam_info["room"] = exam[5]
 
                 # Assume they are problematic and then change them if not.
                 exam_info["start time"] = "TBA"
@@ -425,8 +430,10 @@ def parse_list(results):
                         exam_info["end time am"] = False
 
                 if 'FI' in item:
+                    exam_info["meeting type"] ="FI"
                     final = exam_info
                 else:
+                    exam_info["meeting type"] = "MI"
                     midterm = exam_info
 
         # Uses first 6-digit id as key.
@@ -479,7 +486,7 @@ def group_list(lst):
     composite = defaultdict(dict)
 
     for i in lst:
-        composite[i["department"] + " " + i["course number"]][i["section"][1]["section 1 number"]] = i
+        composite[i["department"] + " " + i["course number"]][i["section"][1]["number"]] = i
 
     return composite
 
@@ -500,52 +507,71 @@ def prepare_for_db(dict, teacher_email_mapping):
         (course name, department, etc) first level in our db schema for easy access.
         Also expands restriction codes to full abbreviations."""
 
+    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+
     # Email and then list of classes.
     grouped_by_teachers = defaultdict(lambda: [set(), set()])
 
     for i in dict:
+
         first_section = dict[i][dict[i].iterkeys().next()]
         code = first_section['department'] + " " + first_section['course number']
         title = first_section['course name']
         key = first_section['key']
-        units = first_section['units']
+        units = first_section['units'][:-6]
         waitlist = 'true'
+
         for j in dict[i].keys():
             for k in dict[i][j]['section'].keys():
-                name = dict[i][j]['section'][k]['section ' + str(k) + ' name']
+                name = dict[i][j]['section'][k]['name']
 
-                dict[i][j]['section'][k]['section '  + str(k) + ' email'] = 'No Email' # Assign no email by default.
+                dict[i][j]['section'][k]['email'] = 'No Email' # Assign no email by default.
                 try:
-                    dict[i][j]['section'][k]['section '  + str(k) + ' email'] = teacher_email_mapping[name]
+                    dict[i][j]['section'][k]['email'] = teacher_email_mapping[name]
                 except:
                     pass
 
                 if name not in ("", "Staff", "Blank"):
-                    grouped_by_teachers[name.replace('.', "")][0].add(dict[i][j]['section'][k]['section '  + str(k) + ' email'])
+                    grouped_by_teachers[name.replace('.', "")][0].add(dict[i][j]['section'][k]['email'])
                     grouped_by_teachers[name.replace('.', "")][1].add(i)
 
-
-            temp = ""
-            for val in dict[i][j]['restrictions'].strip().split(" "):
-                if val is not '':
-                    temp += restrictions[val] + ", "
-
-            dict[i][j]['restrictions'] = temp
-
             first, second = dict[i][j]['seats'][dict[i][j]['seats'].keys()[0]]
+
+
+            if ('restrictions' not in dict[i]):
+                temp = ""
+                for val in dict[i][j]['restrictions'].strip().split(" "):
+                    if val is not '':
+                        temp += restrictions[val] + ", "
+
+                dict[i]['restrictions'] = temp
+
 
             if first < second:
                 waitlist = 'false'
 
+            del dict[i][j]['restrictions']
             del dict[i][j]['department']
             del dict[i][j]['course number']
             del dict[i][j]['units']
             del dict[i][j]['course name']
             del dict[i][j]['key']
 
+        path = "/catalog/" + str(i)
+
+        val = database.get(path, None)
+
+        try:
+            dict[i]['description'] = val['description']
+            dict[i]['prerequisites'] = val['prerequisites']
+            dict[i]['title'] = val['title']
+        except TypeError:
+            dict[i]['description'] = '???'
+            dict[i]['prerequisites'] = '???'
+            dict[i]['title'] = title
+
         dict[i]['waitlist'] = waitlist
         dict[i]['code'] = code
-        dict[i]['title'] = title
         dict[i]['key'] = key
         dict[i]['units'] = units
         dict[i]['dei'] = 'true' if code in DEI else 'false'
@@ -573,6 +599,8 @@ def write_to_db(dictionary, quarter):
 def write_teachers_to_db(dictionary, quarter):
     """ Adds data to firebase."""
 
+    print("Writing teacher information to database.")
+
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
     path = "/quarter/" + quarter + " teachers" + "/"
@@ -598,7 +626,7 @@ def load_fake_data_into_db():
 
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
-    path = "/quarter/Spring 2020/"
+    path = "/quarter/SP20/"
 
     database.put(path, "CSE 1000", {
         "A00": {'restrictions':'None, '},
@@ -613,10 +641,7 @@ def load_fake_data_into_db():
     })
 
 
-def main():
-    '''The main function.'''
-    # print(sys.version)
-
+def runner(write_to_db_bool):
     # Update POST_DATA and sets NUMBER_PAGES to parse.
     quarter = setup()
 
@@ -646,15 +671,30 @@ def main():
     # Groups teachers and classes and prepares the grouped dictionary for upload by modifiying it.
     grouped, grouped_by_teachers = prepare_for_db(grouped, teacher_email_mapping)
 
-    # reset_db()
-    # load_fake_data_into_db()
+    if (write_to_db_bool):
+        # Writes the data to the db.
+        write_to_db(grouped, quarter)
 
-    # Writes the data to the db.
-    write_to_db(grouped, quarter)
+        # Writes the teacher data to the db.
+        write_teachers_to_db(grouped_by_teachers, quarter)
 
-    # Writes the teacher data to the db.
-    write_teachers_to_db(grouped_by_teachers, quarter)
 
+def main():
+    '''The main function.'''
+    print(sys.version)
+
+    reset = True
+    fake = False
+    write = True
+
+    if (reset):
+        reset_db()
+
+    if (fake):
+        load_fake_data_into_db()
+
+    else:
+        runner(write)
 
 if __name__ == '__main__':
     main()
