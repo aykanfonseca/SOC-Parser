@@ -14,47 +14,42 @@ def main():
     post = requests.get(podcast_url)
     soup = BeautifulSoup(post.content, 'lxml')
 
-    table = soup.findAll('tr')
-
     # A list of lists where each list is contains: title of course, professor, authentication, and podcast link.
     podcasts = []
+
+    table = soup.find('div', {'class': 'quarter'}).findAll('tr')
 
     for item in table:
         sub = []
 
-        parsed = str(item.text.strip()).partition('\n')
-
-        # Append the Class name & Professor.
-        sub.append(parsed[0])
-        sub.append(parsed[2])
+        # # Append the Class name & Professor.
+        sub.append(item.findAll('td')[0].text.strip().partition('-')[0].strip())
+        sub.append(item.findAll('td')[1].text.strip())
 
         # True / False value if log in authentication is required. Assume false. 
         authentication = False
 
-        try:
-            if (str(item['class'][0]) == authentication):
-                authentication = True
-        except KeyError:
-            pass
+        if (item.findAll('td')[0].div != None):
+            authentication = True
         
         # Append the authentication.
         sub.append(authentication)
 
         # Podcast link.
-        try:
-            if (str(item.find('a')['class'][0]) == "PodcastLink"):
-                sub.append(podcast_url + str(item.find('a')['href']))
-                podcasts.append(sub)
-        except:
-            # If there's no podcast link, skip adding it to the podcasts list.
-            continue
+        sub.append(item.findAll('td')[2].findAll('a')[0]['href'][:-4])
+
+        podcasts.append(sub)
 
     # Natural sort the classes based on first item in list for each list in list of lists. 
     podcasts.sort(key=natural_sort_key)
 
     # Print data.
     for i in podcasts:
-        print i
+        print i[0]
+        print i[1]
+        print i[2]
+        print i[3]
+        print "\n"
 
     end = time.time()
 
