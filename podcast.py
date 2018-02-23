@@ -17,6 +17,8 @@ podcast_url = "https://podcast.ucsd.edu"
 
 
 def parse_data():
+    """ Parses data to upload to firebase."""
+
     post = requests.get(podcast_url)
     soup = BeautifulSoup(post.content, 'lxml')
 
@@ -32,20 +34,10 @@ def parse_data():
     for item in table:
         sub = {}
 
-        # # Append the Class name & Professor.
+        # # Append the class name, professor, if authentication is required (bool), and the link to the podcast.
         sub['class'] = item.findAll('td')[0].text.strip().partition('-')[0].strip()
         sub['professor'] = item.findAll('td')[1].text.strip()
-
-        # True / False value if log in authentication is required. Assume false. 
-        authentication = False
-
-        if (item.findAll('td')[0].div != None):
-            authentication = True
-        
-        # Append the authentication.
-        sub['authentication'] = authentication
-
-        # Podcast link.
+        sub['authentication'] = (item.findAll('td')[0].div != None)
         sub['link'] = item.findAll('td')[2].findAll('a')[0]['href'][:-4]
 
         podcasts.append(sub)
@@ -54,6 +46,8 @@ def parse_data():
 
 
 def update_db(podcasts, quarter):
+    """ Updates nodes if the node exists."""
+
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
     for item in podcasts:
