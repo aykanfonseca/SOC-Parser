@@ -89,8 +89,8 @@ def setup():
 
     # The subjects to parse.
     # POST_DATA.update({'selectedTerm': get_quarters()[0]})
-    POST_DATA.update({'selectedTerm': "FA17"})
-    # POST_DATA.update({'selectedTerm': "SA17"})
+    # POST_DATA.update({'selectedTerm': "FA17"})
+    POST_DATA.update({'selectedTerm': "WI18"})
 
     # The quarter to parse.
     # POST_DATA.update(get_subjects())
@@ -491,17 +491,6 @@ def group_list(lst):
     return composite
 
 
-def department_group(dict):
-    ''' Groups the various classes by department.'''
-
-    departments = defaultdict(dict)
-
-    for i in dict:
-        departments[i.partition(" ")[0]][i] = dict[i]
-
-    return departments
-
-
 def prepare_for_db(dict, teacher_email_mapping):
     """ Groups teachers and classes they teach as well as makes some data 
         (course name, department, etc) first level in our db schema for easy access.
@@ -664,9 +653,6 @@ def runner(write_to_db_bool):
 
     # Groups by class.
     grouped = group_list(finished)
- 
-    # Groups by department.
-    # grouped_by_department = department_group(grouped)
 
     # Groups teachers and classes and prepares the grouped dictionary for upload by modifiying it.
     grouped, grouped_by_teachers = prepare_for_db(grouped, teacher_email_mapping)
@@ -695,6 +681,7 @@ def main():
 
     else:
         runner(write)
+
 
 if __name__ == '__main__':
     main()
