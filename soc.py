@@ -511,10 +511,51 @@ def prepare_for_db(dict, teacher_email_mapping):
         waitlist = 'true'
 
         for j in dict[i].keys():
+            
+            if 'day 1' in dict[i][j]['final']:
+                dict[i][j]['final']['days'] = dict[i][j]['final']['day 1']
+                del dict[i][j]['final']['day 1']
+
             for k in dict[i][j]['section'].keys():
                 name = dict[i][j]['section'][k]['name']
 
                 dict[i][j]['section'][k]['email'] = 'No Email' # Assign no email by default.
+
+                # Flatten days -------------------------
+                days = []
+                for ke, val in dict[i][j]['section'][k].items():
+                    if 'day' in ke:
+                        if val is not 'Blank':
+                            days.append((int(ke[-1:]), val))
+                        
+                        del dict[i][j]['section'][k][ke]
+
+                # Sort if we need to.
+                if len(days) > 1:
+                    days.sort(key=lambda x: x[0])
+
+                days = [snd.replace('Th', 'R').replace('Tu', 'T') for (frst, snd) in days]
+
+                if len(days) is 0:
+                    dict[i][j]['section'][k]['days'] = '-'
+                else:
+                    dict[i][j]['section'][k]['days'] = ''.join(days)
+                # ---------------------------------------
+
+                # Flatten time signatures ---------------
+                if not (dict[i][j]['section'][k]['end time am']):
+                    end = dict[i][j]['section'][k]['end time'].split(':')
+                    dict[i][j]['section'][k]['end time'] = str(int(end[0]) + 12) + ":" + end[1]
+
+                if not (dict[i][j]['section'][k]['start time am']):
+                    start = dict[i][j]['section'][k]['start time'].split(':')
+                    dict[i][j]['section'][k]['start time'] = str(int(start[0]) + 12) + ":" + start[1]
+
+                # Delete unnecessary keys.
+                del dict[i][j]['section'][k]['start time am']
+                del dict[i][j]['section'][k]['end time am']
+                # ----------------------------------------
+
                 try:
                     dict[i][j]['section'][k]['email'] = teacher_email_mapping[name]
                 except:
@@ -525,7 +566,6 @@ def prepare_for_db(dict, teacher_email_mapping):
                     grouped_by_teachers[name.replace('.', "")][1].add(i)
 
             first, second = dict[i][j]['seats'][dict[i][j]['seats'].keys()[0]]
-
 
             if ('restrictions' not in dict[i]):
                 temp = ""
@@ -561,7 +601,6 @@ def prepare_for_db(dict, teacher_email_mapping):
 
         dict[i]['waitlist'] = waitlist
         dict[i]['code'] = code
-        dict[i]['key'] = key
         dict[i]['units'] = units
         dict[i]['dei'] = 'true' if code in DEI else 'false'
 

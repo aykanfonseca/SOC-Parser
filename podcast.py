@@ -5,6 +5,7 @@
 
 # Builtins
 import time
+import sys
 
 # Pip install packages.
 from bs4 import BeautifulSoup
@@ -18,6 +19,8 @@ podcast_url = "https://podcast.ucsd.edu"
 
 def parse_data():
     """ Parses data to upload to firebase."""
+
+    print("Parsing data.")
 
     post = requests.get(podcast_url)
     soup = BeautifulSoup(post.content, 'lxml')
@@ -47,6 +50,8 @@ def parse_data():
 
 def update_db(podcasts, quarter):
     """ Updates nodes if the node exists."""
+
+    print("Updating DB with data.")
 
     database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
 
