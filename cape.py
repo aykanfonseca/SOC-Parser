@@ -195,7 +195,7 @@ def reset_db():
 
 
 def main():
-    currentQuarterNeeded = False
+    currentQuarterNeeded = True
     print_errors = False
     upload_data = True
     reset_db = False

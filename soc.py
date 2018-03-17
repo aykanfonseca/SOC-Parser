@@ -88,9 +88,9 @@ def setup():
     global NUMBER_PAGES
 
     # The subjects to parse.
-    # POST_DATA.update({'selectedTerm': get_quarters()[0]})
+    POST_DATA.update({'selectedTerm': get_quarters()[0]})
     # POST_DATA.update({'selectedTerm': "FA17"})
-    POST_DATA.update({'selectedTerm': "WI18"})
+    # POST_DATA.update({'selectedTerm': "WI18"})
 
     # The quarter to parse.
     # POST_DATA.update(get_subjects())
@@ -516,6 +516,22 @@ def prepare_for_db(dict, teacher_email_mapping):
                 dict[i][j]['final']['days'] = dict[i][j]['final']['day 1']
                 del dict[i][j]['final']['day 1']
 
+            if 'start time am' in dict[i][j]['final']:
+                if not dict[i][j]['final']['start time am']:
+                    start = dict[i][j]['final']['start time'].split(':')
+                    if (int(start[0]) != 12):
+                        dict[i][j]['final']['start time'] = str(int(start[0]) + 12) + ":" + start[1]
+
+                del dict[i][j]['final']['start time am']
+
+            if 'end time am' in dict[i][j]['final']:
+                if not dict[i][j]['final']['end time am']:
+                    end = dict[i][j]['final']['end time'].split(':')
+                    if (int(end[0]) != 12):
+                        dict[i][j]['final']['end time'] = str(int(end[0]) + 12) + ":" + end[1]
+
+                del dict[i][j]['final']['end time am']
+
             for k in dict[i][j]['section'].keys():
                 name = dict[i][j]['section'][k]['name']
 
@@ -545,11 +561,13 @@ def prepare_for_db(dict, teacher_email_mapping):
                 # Flatten time signatures ---------------
                 if not (dict[i][j]['section'][k]['end time am']):
                     end = dict[i][j]['section'][k]['end time'].split(':')
-                    dict[i][j]['section'][k]['end time'] = str(int(end[0]) + 12) + ":" + end[1]
+                    if (int(end[0]) != 12):
+                        dict[i][j]['section'][k]['end time'] = str(int(end[0]) + 12) + ":" + end[1]
 
                 if not (dict[i][j]['section'][k]['start time am']):
                     start = dict[i][j]['section'][k]['start time'].split(':')
-                    dict[i][j]['section'][k]['start time'] = str(int(start[0]) + 12) + ":" + start[1]
+                    if (int(start[0]) != 12):
+                        dict[i][j]['section'][k]['start time'] = str(int(start[0]) + 12) + ":" + start[1]
 
                 # Delete unnecessary keys.
                 del dict[i][j]['section'][k]['start time am']
