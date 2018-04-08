@@ -88,13 +88,13 @@ def setup():
     global NUMBER_PAGES
 
     # The subjects to parse.
-    POST_DATA.update({'selectedTerm': get_quarters()[0]})
-    # POST_DATA.update({'selectedTerm': "FA17"})
+    # POST_DATA.update({'selectedTerm': get_quarters()[0]})
+    POST_DATA.update({'selectedTerm': "SP18"})
     # POST_DATA.update({'selectedTerm': "WI18"})
 
     # The quarter to parse.
     # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': ['CSE']})
+    POST_DATA.update({'selectedSubjects': ['CSE', 'ANTH']})
 
     # The total number of pages to parse.
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
@@ -513,7 +513,7 @@ def prepare_for_db(dict, teacher_email_mapping):
         for j in dict[i].keys():
             
             if 'day 1' in dict[i][j]['final']:
-                dict[i][j]['final']['days'] = dict[i][j]['final']['day 1']
+                dict[i][j]['final']['days'] = dict[i][j]['final']['day 1'].replace('Th', 'R').replace('Tu', 'T')
                 del dict[i][j]['final']['day 1']
 
             if 'start time am' in dict[i][j]['final']:

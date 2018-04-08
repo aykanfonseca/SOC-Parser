@@ -195,7 +195,7 @@ def reset_db():
 
 
 def main():
-    currentQuarterNeeded = True
+    currentQuarterNeeded = False
     print_errors = False
     upload_data = True
     reset_db = False
@@ -205,7 +205,7 @@ def main():
         quarter = get_quarters()[0]
     else:
         # Harcode needed quarter.
-        quarter = "WI18"
+        quarter = "SP18"
 
     data = get_data_from_db(quarter)
 
