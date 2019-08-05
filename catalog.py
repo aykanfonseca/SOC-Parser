@@ -15,6 +15,8 @@ SUBJECTS_URL = 'http://blink.ucsd.edu/instructors/courses/schedule-of-classes/su
 URL_CATALOG = 'http://www.ucsd.edu/catalog/courses/'
 URL_CATALOG2 = 'http://www.ucsd.edu/catalog/front/courses.html'
 
+# FIREBASE_DB = "https://schedule-of-classes-8b222.firebaseio.com/"
+FIREBASE_DB = "https://winter-2019-rd.firebaseio.com/"
 
 def get_subjects():
     '''Gets all the subjects.'''
@@ -109,9 +111,12 @@ def get_data(url_subject_tuple):
                 if 'BENG/BIMM/CSE' in parsed_text:
                     parsed_text = "BENG " + " ".join(parsed_text.split(" ")[1:])
 
-                # Japanese exception.
-                if subject == "JAPN" and 'Prerequisites' not in parsed_text and i['class'] == ['course-name'] and '-' in parsed_text:
-                    parsed_text = "JAPN " + parsed_text
+                try:
+                    # Japanese exception.
+                    if subject == "JAPN" and 'Prerequisites' not in parsed_text and i['class'] == ['course-name'] and '-' in parsed_text:
+                        parsed_text = "JAPN " + parsed_text
+                except:
+                    pass
 
                 page_list.append(parsed_text)
             
@@ -242,7 +247,7 @@ def reset_db():
 
     print("Wiping information in database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     database.delete('/catalog', None)
 
@@ -252,7 +257,7 @@ def write_to_db(dictionary):
 
     print("Writing information to database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     path = "catalog"
 

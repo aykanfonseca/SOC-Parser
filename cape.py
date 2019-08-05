@@ -30,6 +30,8 @@ USER_AGENT = {'User-agent': 'Mozilla/5.0'}
 # URL to the entire list of classes.
 SOC_URL = 'https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesStudentResult.htm?page='
 
+# FIREBASE_DB = "https://schedule-of-classes-8b222.firebaseio.com/"
+FIREBASE_DB = "https://winter-2019-rd.firebaseio.com/"
 
 def get_quarters():
     '''Gets all the quarters listed in drop down menu, and return the most recent one.'''
@@ -48,7 +50,7 @@ def get_data_from_db(quarter):
 
     print("Getting information from database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     path = "/quarter/" + quarter + "/"
 
@@ -157,7 +159,7 @@ def update_db(quarter, data):
     print("Updating information in database.")
 
     keys_exclude = {'restrictions', 'code', 'description', 'title', 'prerequisites', 'units', 'dei', 'key', 'waitlist', 'podcast'}
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     for course in data:
         path = "/quarter/" + quarter + "/" + str(course) + "/"
@@ -189,13 +191,13 @@ def reset_db():
 
     print("Wiping information in database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     database.delete('/quarter', None)
 
 
 def main():
-    currentQuarterNeeded = False
+    currentQuarterNeeded = True
     print_errors = False
     upload_data = True
     reset_db = False

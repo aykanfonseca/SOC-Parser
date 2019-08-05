@@ -6,6 +6,7 @@ import re
 import sys
 import time
 from collections import defaultdict
+import json
 
 # Pip install packages.
 from bs4 import BeautifulSoup
@@ -38,6 +39,9 @@ POST_DATA = {'loggedIn': 'false', 'instructorType': 'begin', 'titleType': 'conta
              'schDay': ['M', 'T', 'W', 'R', 'F', 'S'], 'schedOption1': 'true',
              'schedOption2': 'true'}
 
+# FIREBASE_DB = "https://schedule-of-classes-8b222.firebaseio.com/"
+FIREBASE_DB = "https://winter-2019-rd.firebaseio.com/"
+
 # Restrictions mappings.
 restrictions = {
     'D': 'Department Approval Required', 'ER': 'Open to Eleanor Roosevelt College Students Only',
@@ -61,6 +65,7 @@ DEI = ['HILD 7A', 'HILD 7C', 'HILD 7B', 'LATI 100', 'ANSC 122', 'TDHT 120', 'COM
         'MUS 8GS', 'ETHN 190', 'HIUS 167', 'SOCI 111', 'POLI 105A', 'LTCS 130', 'SOCI 117', 'LTEN 27', 'ETHN 110', 'PHIL 155', 'LTEN 181', 'LTEN 185', 
         'LTEN 28', 'LTEN 29', 'HIUS 180', 'HIUS 128', 'USP 3', 'USP 129', 'BILD 60', 'ETHN 127', 'ETHN 124', 'MUS 150', 'HDP 135', 'ETHN 3', 'ETHN 2', 
         'ETHN 1', 'POLI 150A'];
+
 
 def get_quarters():
     '''Gets all the quarters listed in drop down menu.'''
@@ -88,13 +93,13 @@ def setup():
     global NUMBER_PAGES
 
     # The subjects to parse.
-    # POST_DATA.update({'selectedTerm': get_quarters()[0]})
-    POST_DATA.update({'selectedTerm': "SP18"})
+    POST_DATA.update({'selectedTerm': get_quarters()[0]})
+    # POST_DATA.update({'selectedTerm': "SP18"})
     # POST_DATA.update({'selectedTerm': "WI18"})
 
     # The quarter to parse.
-    # POST_DATA.update(get_subjects())
-    POST_DATA.update({'selectedSubjects': ['CSE', 'ANTH']})
+    POST_DATA.update(get_subjects())
+    # POST_DATA.update({'selectedSubjects': ['CSE', 'ANTH']})
 
     # The total number of pages to parse.
     post = str(SESSION.post(SOC_URL, data=POST_DATA, stream=True).content)
@@ -190,7 +195,6 @@ def parse_list(results):
     '''Parses the list elements into their readable values to store.'''
 
     parsed = []
-    teacher_class = {}
 
     for lst in results:
         # Components of a class.
@@ -496,7 +500,7 @@ def prepare_for_db(dict, teacher_email_mapping):
         (course name, department, etc) first level in our db schema for easy access.
         Also expands restriction codes to full abbreviations."""
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     # Email and then list of classes.
     grouped_by_teachers = defaultdict(lambda: [set(), set()])
@@ -539,12 +543,12 @@ def prepare_for_db(dict, teacher_email_mapping):
 
                 # Flatten days -------------------------
                 days = []
-                for ke, val in dict[i][j]['section'][k].items():
-                    if 'day' in ke:
+                for key, val in dict[i][j]['section'][k].items():
+                    if 'day' in key:
                         if val is not 'Blank':
-                            days.append((int(ke[-1:]), val))
+                            days.append((int(key[-1:]), val))
                         
-                        del dict[i][j]['section'][k][ke]
+                        del dict[i][j]['section'][k][key]
 
                 # Sort if we need to.
                 if len(days) > 1:
@@ -634,7 +638,7 @@ def write_to_db(dictionary, quarter):
 
     print("Writing information to database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     path = "/quarter/" + quarter + "/"
 
@@ -647,7 +651,7 @@ def write_teachers_to_db(dictionary, quarter):
 
     print("Writing teacher information to database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     path = "/quarter/" + quarter + " teachers" + "/"
 
@@ -660,7 +664,7 @@ def reset_db():
 
     print("Wiping information in database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     database.delete('/quarter', None)
 
@@ -670,7 +674,7 @@ def load_fake_data_into_db():
 
     print("Writing fake information to database.")
 
-    database = firebase.FirebaseApplication("https://schedule-of-classes-8b222.firebaseio.com/")
+    database = firebase.FirebaseApplication(FIREBASE_DB)
 
     path = "/quarter/SP20/"
 
@@ -687,7 +691,7 @@ def load_fake_data_into_db():
     })
 
 
-def runner(write_to_db_bool):
+def runner(write_to_db_bool, use_json_bool):
     # Update POST_DATA and sets NUMBER_PAGES to parse.
     quarter = setup()
 
@@ -711,8 +715,19 @@ def runner(write_to_db_bool):
     # Groups by class.
     grouped = group_list(finished)
 
+    print("GROUPED")
+
     # Groups teachers and classes and prepares the grouped dictionary for upload by modifiying it.
     grouped, grouped_by_teachers = prepare_for_db(grouped, teacher_email_mapping)
+
+    print("GROUPED2")
+
+    if (use_json_bool):
+        print("Converting to JSON\n")
+        r = json.dumps(grouped)
+
+        with open("grouped.txt", 'w+') as file:
+            file.write(r)
 
     if (write_to_db_bool):
         # Writes the data to the db.
@@ -726,9 +741,10 @@ def main():
     '''The main function.'''
     print(sys.version)
 
-    reset = True
+    reset = False
     fake = False
-    write = True
+    write = False
+    json = True
 
     if (reset):
         reset_db()
@@ -737,7 +753,7 @@ def main():
         load_fake_data_into_db()
 
     else:
-        runner(write)
+        runner(write, json)
 
 
 if __name__ == '__main__':
